@@ -334,15 +334,247 @@
         "value": 7
       },
       {
-        "op": "assert",
+        "op": "calc",
+        "var": "range_status",
         "expr": [
           "$status",
           4,
-          ">>",
+          ">>"
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          1,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 1: Sensor-Systemfehler"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          2,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 2: Sensor-Systemfehler"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          3,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 3: Sensor-Systemfehler"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          4,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 4: Sensor-Systemfehler"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          5,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 5: Sensor-Systemfehler"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          6,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 6: Fruehe Konvergenz fehlgeschlagen"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          7,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 7: Kein Ziel / keine Konvergenz"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          8,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 8: Range-Ignore-Pruefung fehlgeschlagen"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          9,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 9: Reservierter Fehlercode"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          10,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 10: Reservierter Fehlercode"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          11,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 11: Signal/Rauschen unzureichend"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          12,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 12: Rohwert-Unterlauf"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          13,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 13: Rohwert-Ueberlauf"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          14,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 14: Abstands-Unterlauf"
+          }
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$range_status",
+          15,
+          "eq"
+        ],
+        "then": [
+          {
+            "op": "assert",
+            "expr": 0,
+            "message": "VL6180 Status 15: Abstands-Ueberlauf"
+          }
+        ]
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$range_status",
           0,
           "eq"
         ],
-        "message": "Ungueltiger Range-Status"
+        "message": "VL6180 unbekannter Range-Status"
       }
     ],
     "stop": []
@@ -354,7 +586,7 @@
       "unit": "mm"
     }
   ],
-  "notes": "Abgeleitet aus Adafruit VL6180X 1.4.4. Nur Abstand, kein ALS. Nicht gemeinsam mit anderem Geraet auf 0x29 betreiben. Hardwaretest ausstehend.",
+  "notes": "Abgeleitet aus Adafruit VL6180X 1.4.4. Nur Abstand, kein ALS. Nicht gemeinsam mit anderem Geraet auf 0x29 betreiben. Hardwaretest ausstehend. Status 0 ist gueltig; andere Statuscodes werden als konkrete Fehlermeldung ausgegeben. Fuer ersten Funktionstest matte helle Flaeche in 20-50 mm Abstand verwenden.",
   "sources": [
     "https://github.com/adafruit/Adafruit_VL6180X/tree/1.4.4"
   ],

@@ -40,8 +40,7 @@ die Aussagekraft; alle Register und Prüfschritte bleiben in `detect`.
 Der Autoscan lädt die Profile regelmäßig und führt ausschließlich ihre lesenden
 Erkennungssequenzen aus. Ein eindeutiger Treffer wird ausgewählt und schaltet den Autoscan aus. Bei
 mehreren Treffern erfolgt keine automatische Auswahl. Kein Treffer löscht die
-automatische Auswahl. Messungen starten weiterhin über Start. Nach Stop oder
-Messfehler bleibt die Suche aus. Ein neuer Autoscan muss über die Taste gestartet
+automatische Auswahl. Messungen starten weiterhin über Start. Nach Stop bleibt die Suche aus; Messfehler beenden die Auswertung nicht. Ein neuer Autoscan muss über die Taste gestartet
 werden; dabei werden auch die SD-Dateien neu geladen. Die Sensor-Taste blättert
 manuell durch alle geladenen Profile und beendet die Suche.
 
@@ -74,7 +73,11 @@ ohne Modellerkennung, diese Unsicherheit in `notes` angeben.
 Alle Sequenzen werden vor Ausführung geprüft. Grenzen: 512 definierte Schritte
 über alle Sequenzen, 2048 ausgeführte Schritte je Aufruf, 4 Verschachtelungsebenen,
 64 Variablen und 10 Sekunden je Sequenz (inkl. begrenzter Buswartezeiten).
-Bei Messfehler wird kein gültiger Messwert angezeigt; Firmware versucht `stop`.
+Bei einem Messfehler wird kein gültiger Messwert angezeigt. Die Sitzung bleibt
+aktiv; `measure` wird beim nächsten Intervall mit frischen Variablen erneut
+ausgeführt. Der erste gültige Messwert löscht die Warnung. Messsequenzen müssen
+deshalb wiederholbar sein und Ressourcen möglichst vor `assert` freigeben.
+`stop` wird erst bei explizitem Stop oder Profilwechsel ausgeführt.
 Stoppsequenzen möglichst ohne zusätzliche Voraussetzungen formulieren, damit
 sie auch nach einer teilweise fehlgeschlagenen Initialisierung funktionieren.
 

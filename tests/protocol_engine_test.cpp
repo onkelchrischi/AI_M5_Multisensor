@@ -61,7 +61,29 @@ void profiles() {
     require(sequence(e,p,"init"),e);
     e.reset(p["constants"].as<JsonObjectConst>());
     require(sequence(e,p,"measure"),e);
-    if(kind=="vl6180") assert(e.variables.at("distance")==42);
+    if(kind=="vl6180") {
+      assert(e.variables.at("distance")==42);
+      for (unsigned status=1; status<=15; ++status) {
+        b.number(0x4d,(status<<4)|1,1);
+        e.reset(p["constants"].as<JsonObjectConst>());
+        assert(!sequence(e,p,"measure"));
+        assert(e.variables.at("range_status")==status);
+        assert(e.error.find("VL6180 Status "+std::to_string(status)+":")==0);
+        // A failed range is rejected after clearing the interrupt, so retry works.
+        assert(b.writes.back().first==0x15 && b.writes.back().second[0]==7);
+      }
+      b.number(0x4d,1,1);
+      e.reset(p["constants"].as<JsonObjectConst>());
+      require(sequence(e,p,"measure"),e); assert(e.variables.at("distance")==42);
+      // Move out of range and back repeatedly without stop/init in between.
+      for (unsigned status : {13u, 0u, 15u, 0u, 7u, 0u}) {
+        b.number(0x4d,(status<<4)|1,1);
+        e.reset(p["constants"].as<JsonObjectConst>());
+        bool valid = sequence(e,p,"measure");
+        assert(valid == (status==0));
+        if (valid) { assert(e.error.empty()); assert(e.variables.at("distance")==42); }
+      }
+    }
     if(kind=="vl53l4cda") {
       assert(e.variables.at("distance")==123);
       // Verify encoded timing writes against the upstream uint32 algorithm.

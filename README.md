@@ -37,7 +37,8 @@ Genau drei Touch-Schaltflächen, von links nach rechts:
   **automatisch deaktiviert**. Ein erneuter Druck startet eine neue Suche und
   lädt dabei auch die SD-Profile neu. Es gibt keinen separaten SD-Knopf mehr.
 - **Start/Stop Auswertung**: Sensor prüfen, initialisieren und Messung starten
-  bzw. stoppen. Die Suche bleibt nach Stop oder Messfehler ausgeschaltet.
+  bzw. stoppen. Die Suche bleibt nach Stop ausgeschaltet. Messfehler stoppen die Auswertung
+  nicht: beim nächsten Intervall wird erneut gemessen.
   Ein Sensorwechsel erfordert einen neuen Autoscan. Eine neue Suche beendet
   eine laufende Auswertung zuerst.
 - **Sensor durchblättern**: alle geladenen Profile nacheinander anzeigen.
@@ -52,8 +53,9 @@ anschließend Autoscan neu einschalten, um die Karte erneut einzulesen.
 Name, Sensortyp, Gruppe und Ausgabekanäle kommen aus der JSON. Messergebnisse
 erscheinen auf dem Display und im seriellen Monitor als
 `Millisekunden,Sensortyp,Variable,Wert,Einheit`. Es gibt noch keine SD-Aufzeichnung
-oder statistische Analyse. Bei einem Messfehler wird gestoppt und die im Profil
-hinterlegte Stoppsequenz versucht. Fehler beim Stoppen erscheinen auf Serial.
+oder statistische Analyse. Bei einem Messfehler wird kein gültiger Messwert angezeigt. Die Auswertung
+bleibt aktiv und versucht beim nächsten Intervall erneut zu messen; eine gültige
+Messung ersetzt die Fehlermeldung automatisch. Fehler beim Stoppen erscheinen auf Serial.
 Während einer Sequenz kann die Touch-Bedienung bis zu deren Ende verzögert sein;
 Polls sind begrenzt, eine gesamte Sequenz auf 10 Sekunden.
 
@@ -126,3 +128,31 @@ und Sensorabziehen.
 Quellen und Lizenzhinweise der abgeleiteten Initialisierungsdaten und Formeln:
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Sensorbibliotheken sind keine
 Build-Abhängigkeiten mehr.
+
+## VL6180 meldet Messfehler
+
+Die alte Meldung „Ungueltiger Range-Status“ besagt nur, dass der Sensor einen
+Status ungleich 0 liefert. Das aktualisierte `sd/sensors/vl6180.json` zeigt
+stattdessen den konkreten Sensorcode. **Nur diese Datei auf der SD ersetzen**,
+keinen neuen Firmware-Upload durchführen. Danach Autoscan neu starten, damit die
+SD-Profile eingelesen werden, und Start drücken.
+
+Für einen ersten Test eine matte, helle Fläche etwa 20–50 mm vor die optische
+Sensoröffnung halten. Fenster auf Schutzfolie, Verschmutzung oder Verdeckung
+prüfen; direktes Sonnenlicht vermeiden. Nur einen Sensor auf I2C-Adresse 0x29
+anschließen. Der VL6180 ist für kurze Abstände gedacht.
+
+- Status 1–5: interne Systemfehler; Versorgung und Sensorzustand prüfen.
+- Status 6: frühe Konvergenz fehlgeschlagen.
+- Status 7: keine Konvergenz / kein Ziel erkannt.
+- Status 8: Range-Ignore-Prüfung fehlgeschlagen.
+- Status 9–10: reservierte Codes.
+- Status 11: unzureichendes Signal/Rausch-Verhältnis.
+- Status 12/13: Rohwert-Unterlauf/-Überlauf.
+- Status 14/15: Abstands-Unterlauf/-Überlauf.
+
+Ein ungültiger Status wird weiterhin nicht als gültiger Abstand ausgegeben.
+Die Änderung verbessert die Diagnose; sie bestätigt keine Behebung der Ursache
+am realen Sensor. Bei anhaltendem Fehler Statuscode, Breakout-Modell, Zielabstand
+und Anschluss angeben, um Initialisierung, Messbedingungen und Hardware gezielt
+zu prüfen.

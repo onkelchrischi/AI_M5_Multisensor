@@ -201,7 +201,11 @@ void sample() {
   // Clear previous sample values: an output must be produced in this run.
   engine.reset((*active)["constants"].as<JsonObjectConst>());
   if (!sequence("measure")) {
-    String cause = message; value = "Messfehler"; stop(); message = cause; draw(); return;
+    // A failed sample is not a stopped session. Retry at the next interval;
+    // never publish a stale/invalid distance, and clear this warning on success.
+    value = "Kein gueltiger Messwert";
+    Serial.println(message);
+    draw(); return;
   }
   value = "";
   for (JsonObjectConst output : (*active)["outputs"].as<JsonArrayConst>()) {
