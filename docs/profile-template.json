@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "name": "DURCH_GEPRUEFTEN_NAMEN_ERSETZEN",
+  "sensor_type": "DATENBLATT_MODELL",
+  "group": "Temperatur / Feuchte / Bewegung / Abstand / Sonstige",
+  "interface": {"type": "i2c", "address": 0, "register_bytes": 2},
+  "interval_ms": 1000,
+  "constants": {},
+  "sequences": {"detect": [], "init": [], "measure": [], "stop": []},
+  "outputs": [{"label": "Messwert", "var": "value", "unit": ""}],
+  "electrical": {"supply_voltage_v": null, "logic_voltage_v": null},
+  "sources": [],
+  "notes": "ABSICHTLICH UNGUELTIG: Adresse, Erkennung, Initialisierung und Messung aus Datenblatt ergaenzen. Keine unbekannten Werte raten."
+}

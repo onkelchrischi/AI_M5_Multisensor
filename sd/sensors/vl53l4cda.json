@@ -1,10 +1,516 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "VL53L4CDA Abstand",
   "sensor_type": "VL53L4CDA",
   "group": "Abstand",
-  "driver": "vl53l4cd",
-  "interface": {"type": "i2c", "address": 41},
+  "interface": {
+    "type": "i2c",
+    "address": 41,
+    "register_bytes": 2
+  },
   "interval_ms": 500,
-  "parameters": {"timing_budget_ms": 50}
+  "constants": {
+    "timing_budget_ms": 50
+  },
+  "sequences": {
+    "detect": [
+      {
+        "op": "read",
+        "reg": 271,
+        "bytes": 2,
+        "var": "model"
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$model",
+          60330,
+          "eq"
+        ],
+        "message": "Modell-ID ungleich 0xEBAA"
+      }
+    ],
+    "init": [
+      {
+        "op": "assert",
+        "expr": [
+          "$timing_budget_ms",
+          10,
+          "ge"
+        ],
+        "message": "Timingbudget unter 10 ms"
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$timing_budget_ms",
+          200,
+          "le"
+        ],
+        "message": "Timingbudget ueber 200 ms"
+      },
+      {
+        "op": "poll",
+        "reg": 229,
+        "bytes": 1,
+        "mask": 255,
+        "equals": 3,
+        "timeout_ms": 1000
+      },
+      {
+        "op": "write",
+        "reg": 45,
+        "data": [
+          18,
+          0,
+          0,
+          17,
+          2,
+          0,
+          2,
+          8,
+          0,
+          8,
+          16,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          255,
+          0,
+          15,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "op": "write",
+        "reg": 69,
+        "data": [
+          0,
+          32,
+          11,
+          0,
+          0,
+          2,
+          20,
+          33,
+          0,
+          0,
+          5,
+          0,
+          0,
+          0,
+          0,
+          200,
+          0,
+          0,
+          56,
+          255,
+          1,
+          0,
+          8,
+          0
+        ]
+      },
+      {
+        "op": "write",
+        "reg": 93,
+        "data": [
+          0,
+          1,
+          204,
+          7,
+          1,
+          241,
+          5,
+          0,
+          160,
+          0,
+          128,
+          8,
+          56,
+          0,
+          0,
+          0,
+          0,
+          15,
+          137,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "op": "write",
+        "reg": 117,
+        "data": [
+          0,
+          0,
+          1,
+          7,
+          5,
+          6,
+          6,
+          0,
+          0,
+          2,
+          199,
+          255,
+          155,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "op": "write",
+        "reg": 135,
+        "bytes": 1,
+        "value": 64
+      },
+      {
+        "op": "poll",
+        "reg": 49,
+        "bytes": 1,
+        "mask": 1,
+        "equals": 0,
+        "timeout_ms": 1000
+      },
+      {
+        "op": "write",
+        "reg": 134,
+        "bytes": 1,
+        "value": 1
+      },
+      {
+        "op": "write",
+        "reg": 135,
+        "bytes": 1,
+        "value": 0
+      },
+      {
+        "op": "write",
+        "reg": 8,
+        "bytes": 1,
+        "value": 9
+      },
+      {
+        "op": "write",
+        "reg": 11,
+        "bytes": 1,
+        "value": 0
+      },
+      {
+        "op": "write",
+        "reg": 36,
+        "bytes": 2,
+        "value": 1280
+      },
+      {
+        "op": "read",
+        "reg": 6,
+        "bytes": 2,
+        "var": "osc"
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$osc",
+          0,
+          "gt"
+        ],
+        "message": "Oszillatorfrequenz null"
+      },
+      {
+        "op": "calc",
+        "var": "macro",
+        "expr": [
+          1073741824,
+          "$osc",
+          "/",
+          "floor",
+          2304,
+          "*",
+          4294967295,
+          "&",
+          6,
+          ">>"
+        ]
+      },
+      {
+        "op": "write",
+        "reg": 108,
+        "bytes": 4,
+        "value": 0
+      },
+      {
+        "op": "calc",
+        "var": "budget_us",
+        "expr": [
+          "$timing_budget_ms",
+          1000,
+          "*",
+          2500,
+          "-",
+          12,
+          "<<"
+        ]
+      },
+      {
+        "op": "calc",
+        "var": "tmp",
+        "expr": [
+          "$macro",
+          16,
+          "*",
+          6,
+          ">>"
+        ]
+      },
+      {
+        "op": "calc",
+        "var": "ls",
+        "expr": [
+          "$budget_us",
+          "$tmp",
+          1,
+          ">>",
+          "+",
+          "$tmp",
+          "/",
+          "floor",
+          1,
+          "-"
+        ]
+      },
+      {
+        "op": "calc",
+        "var": "ms",
+        "expr": 0
+      },
+      {
+        "op": "while",
+        "expr": [
+          "$ls",
+          255,
+          "gt"
+        ],
+        "max_iterations": 24,
+        "steps": [
+          {
+            "op": "calc",
+            "var": "ls",
+            "expr": [
+              "$ls",
+              1,
+              ">>"
+            ]
+          },
+          {
+            "op": "calc",
+            "var": "ms",
+            "expr": [
+              "$ms",
+              1,
+              "+"
+            ]
+          }
+        ]
+      },
+      {
+        "op": "write",
+        "reg": 94,
+        "bytes": 2,
+        "value": [
+          "$ms",
+          8,
+          "<<",
+          "$ls",
+          255,
+          "&",
+          "+"
+        ]
+      },
+      {
+        "op": "calc",
+        "var": "tmp",
+        "expr": [
+          "$macro",
+          12,
+          "*",
+          6,
+          ">>"
+        ]
+      },
+      {
+        "op": "calc",
+        "var": "ls",
+        "expr": [
+          "$budget_us",
+          "$tmp",
+          1,
+          ">>",
+          "+",
+          "$tmp",
+          "/",
+          "floor",
+          1,
+          "-"
+        ]
+      },
+      {
+        "op": "calc",
+        "var": "ms",
+        "expr": 0
+      },
+      {
+        "op": "while",
+        "expr": [
+          "$ls",
+          255,
+          "gt"
+        ],
+        "max_iterations": 24,
+        "steps": [
+          {
+            "op": "calc",
+            "var": "ls",
+            "expr": [
+              "$ls",
+              1,
+              ">>"
+            ]
+          },
+          {
+            "op": "calc",
+            "var": "ms",
+            "expr": [
+              "$ms",
+              1,
+              "+"
+            ]
+          }
+        ]
+      },
+      {
+        "op": "write",
+        "reg": 97,
+        "bytes": 2,
+        "value": [
+          "$ms",
+          8,
+          "<<",
+          "$ls",
+          255,
+          "&",
+          "+"
+        ]
+      },
+      {
+        "op": "write",
+        "reg": 135,
+        "bytes": 1,
+        "value": 33
+      },
+      {
+        "op": "poll",
+        "reg": 49,
+        "bytes": 1,
+        "mask": 1,
+        "equals": 0,
+        "timeout_ms": 1000
+      },
+      {
+        "op": "write",
+        "reg": 134,
+        "bytes": 1,
+        "value": 1
+      }
+    ],
+    "measure": [
+      {
+        "op": "poll",
+        "reg": 49,
+        "bytes": 1,
+        "mask": 1,
+        "equals": 0,
+        "timeout_ms": 1000
+      },
+      {
+        "op": "read",
+        "reg": 137,
+        "bytes": 1,
+        "var": "status"
+      },
+      {
+        "op": "read",
+        "reg": 140,
+        "bytes": 2,
+        "var": "spads"
+      },
+      {
+        "op": "read",
+        "reg": 150,
+        "bytes": 2,
+        "var": "distance"
+      },
+      {
+        "op": "write",
+        "reg": 134,
+        "bytes": 1,
+        "value": 1
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$status",
+          31,
+          "&",
+          9,
+          "eq"
+        ],
+        "message": "Ungueltiger Range-Status"
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$spads",
+          8,
+          ">>",
+          0,
+          "gt"
+        ],
+        "message": "Keine aktiven SPADs"
+      }
+    ],
+    "stop": [
+      {
+        "op": "write",
+        "reg": 135,
+        "bytes": 1,
+        "value": 0
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "var": "distance",
+      "label": "Abstand",
+      "unit": "mm"
+    }
+  ],
+  "notes": "Initialisierung und kontinuierliches Ranging nach ST VL53L4CD 1.0.5. timing_budget_ms 10..200. Standard-Interruptpolaritaet aktiv LOW. Hardwaretest ausstehend.",
+  "sources": [
+    "https://github.com/stm32duino/VL53L4CD/tree/1.0.5"
+  ]
 }

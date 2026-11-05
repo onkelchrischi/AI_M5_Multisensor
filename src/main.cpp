@@ -1,215 +1,188 @@
 #include <M5Unified.h>
-#include <ArduinoJson.h>
 #include <SD.h>
 #include <SPI.h>
 #include <Wire.h>
-#include <Adafruit_MAX31865.h>
-#include <Adafruit_VL6180X.h>
-#include <vl53l4cd_class.h>
-#include <vector>
+#include "ProtocolEngine.h"
 #include <memory>
-#include <math.h>
+#include <vector>
 
-// External Port A only: never scan the internal PMIC/touch I2C bus.
+// Board wiring is fixed; all device protocol details come from SD profiles.
 TwoWire sensorBus(0);
-VL53L4CD tof(&sensorBus, -1);
-Adafruit_VL6180X shortRange;
-struct Profile {
-  String name, type, group, driver;
-  uint8_t address = 0;
-  uint32_t interval = 1000;
-  int budget = 50, offset = 0, length = 8, wires = 3;
-  float nominal = 100, reference = 430;
-};
+class BoardBus : public ProtocolBus {
+  bool spi = false;
+  uint8_t address = 0, registerBytes = 2, readMask = 0, writeMask = 0, mode = 0;
+  uint32_t frequency = 1000000;
+  bool addressValid(uint16_t reg) { return registerBytes == 2 || reg <= 255; }
+  void sendRegister(uint16_t reg, bool writing) {
+    uint8_t hi = reg >> 8, lo = reg;
+    if (spi) {
+      if (registerBytes == 2) { SPI.transfer(hi | (writing ? writeMask : readMask)); SPI.transfer(lo); }
+      else SPI.transfer(lo | (writing ? writeMask : readMask));
+    } else {
+      if (registerBytes == 2) sensorBus.write(hi);
+      sensorBus.write(lo);
+    }
+  }
+public:
+  void configure(JsonObjectConst config) {
+    spi = std::string(config["type"] | "") == "spi";
+    address = config["address"] | 0; registerBytes = config["register_bytes"] | 2;
+    mode = config["mode"] | 0; frequency = config["frequency_hz"] | 1000000;
+    readMask = config["read_mask"] | 0; writeMask = config["write_mask"] | 0;
+  }
+  bool read(uint16_t reg, uint8_t *bytes, size_t n) override {
+    if (!addressValid(reg) || n < 1 || n > 4) return false;
+    if (spi) {
+      SPI.beginTransaction(SPISettings(frequency, MSBFIRST, mode));
+      digitalWrite(14, LOW); sendRegister(reg, false);
+      for (size_t i = 0; i < n; ++i) bytes[i] = SPI.transfer(0);
+      digitalWrite(14, HIGH); SPI.endTransaction(); return true;
+    }
+    sensorBus.beginTransmission(address); sendRegister(reg, false);
+    if (sensorBus.endTransmission(false) || sensorBus.requestFrom(address, uint8_t(n)) != n) return false;
+    for (size_t i = 0; i < n; ++i) bytes[i] = sensorBus.read();
+    return true;
+  }
+  bool write(uint16_t reg, const uint8_t *bytes, size_t n) override {
+    if (!addressValid(reg) || n < 1 || n > 24) return false;
+    if (spi) {
+      SPI.beginTransaction(SPISettings(frequency, MSBFIRST, mode));
+      digitalWrite(14, LOW); sendRegister(reg, true);
+      for (size_t i = 0; i < n; ++i) SPI.transfer(bytes[i]);
+      digitalWrite(14, HIGH); SPI.endTransaction(); return true;
+    }
+    sensorBus.beginTransmission(address); sendRegister(reg, true);
+    sensorBus.write(bytes, n); return sensorBus.endTransmission() == 0;
+  }
+  uint32_t now() override { return millis(); }
+  void wait(uint32_t ms) override { delay(ms); }
+} bus;
+ProtocolEngine engine(bus);
+struct Profile { String path, name, type, group; };
 std::vector<Profile> profiles;
-std::unique_ptr<Adafruit_MAX31865> rtd;
+std::unique_ptr<JsonDocument> active;
 size_t selected = 0;
-bool running = false, sdReady = false;
-uint32_t lastSample = 0, started = 0;
-String message = "SD-Karte einlegen", value = "-";
+bool running = false;
+uint32_t lastSample = 0;
+String message, value = "-";
 
 void draw() {
   auto &d = M5.Display;
   d.fillScreen(TFT_BLACK); d.setTextColor(TFT_WHITE); d.setTextSize(2);
-  d.setCursor(8, 8); d.println("Sensor Test / Core2");
+  d.setCursor(8, 8); d.println("Sensor JSON Engine v2");
   if (!profiles.empty()) {
     const auto &p = profiles[selected];
     d.setCursor(8, 40); d.println(p.name);
     d.setCursor(8, 65); d.println(p.group);
-    d.setCursor(8, 90); d.println(p.type);
+    d.setTextSize(1); d.setCursor(8, 92); d.println(p.type);
   }
-  d.setCursor(8, 120); d.setTextColor(TFT_CYAN); d.println(value);
-  d.setTextSize(1); d.setTextColor(TFT_WHITE);
-  d.setCursor(8, 163); d.println(message);
-  d.setCursor(8, 185); d.println(running ? "Messung aktiv" : "Gestoppt");
+  d.setTextSize(1); d.setTextColor(TFT_CYAN);
+  d.setCursor(8, 112); d.println(value);
+  d.setTextColor(TFT_WHITE); d.setCursor(8, 165); d.println(message);
+  d.setCursor(8, 190); d.println(running ? "Messung aktiv" : "Gestoppt");
   d.drawFastHLine(0, 205, 320, TFT_WHITE);
-  d.setTextSize(2); d.setCursor(5, 215); d.print("Weiter Start/Stop SD");
+  d.setTextSize(2);
+  const char *labels[] = {"Weiter", "Start", "Auto", "SD"};
+  for (unsigned i = 0; i < 4; ++i) { d.setCursor(i * 80 + 3, 215); d.print(labels[i]); }
+}
+bool load(const String &path, JsonDocument &doc) {
+  File f = SD.open(path);
+  if (!f || f.size() > 32768 || deserializeJson(doc, f)) {
+    message = "Profil fehlt / JSON ungueltig"; return false;
+  }
+  if (!engine.validate(doc.as<JsonObjectConst>())) {
+    message = engine.error.c_str(); return false;
+  }
+  return true;
+}
+void prepare(JsonDocument &doc) {
+  bus.configure(doc["interface"].as<JsonObjectConst>());
+  engine.reset(doc["constants"].as<JsonObjectConst>());
+}
+bool sequence(const char *name, bool readOnly = false) {
+  if (!engine.run((*active)["sequences"][name].as<JsonArrayConst>(), readOnly)) {
+    message = String(name) + ": " + engine.error.c_str(); return false;
+  }
+  return true;
 }
 void stop() {
-  if (running && !profiles.empty() && profiles[selected].driver == "vl53l4cd")
-    tof.VL53L4CD_StopRanging();
+  if (running && active) {
+    if (!sequence("stop")) Serial.println(message);
+  }
   running = false;
 }
-bool ack(uint8_t address) {
-  sensorBus.beginTransmission(address);
-  return sensorBus.endTransmission() == 0;
-}
-bool loadProfile(File &file, Profile &p) {
-  if (file.size() > 8192) return false;
-  JsonDocument doc;
-  if (deserializeJson(doc, file)) return false;
-  if (doc["schema_version"].as<int>() != 1 ||
-      !doc["name"].is<const char*>() || !doc["sensor_type"].is<const char*>() ||
-      !doc["group"].is<const char*>() || !doc["driver"].is<const char*>()) return false;
-  p.name = doc["name"].as<String>(); p.type = doc["sensor_type"].as<String>();
-  p.group = doc["group"].as<String>(); p.driver = doc["driver"].as<String>();
-  if (!p.name.length() || p.name.length() > 40 || !p.type.length() ||
-      !p.group.length() || p.group.length() > 40) return false;
-  int interval = doc["interval_ms"] | 1000;
-  if (interval < 100 || interval > 60000) return false;
-  p.interval = interval;
-  String bus = doc["interface"]["type"] | "";
-  if (p.driver == "vl53l4cd" || p.driver == "vl6180x" || p.driver == "st25dv16") {
-    if (bus != "i2c") return false;
-    int address = doc["interface"]["address"] | -1;
-    // Initial prototype only supports known default addresses.
-    if (address != (p.driver == "st25dv16" ? 0x53 : 0x29)) return false;
-    p.address = address;
-  } else if (p.driver == "max31865") {
-    if (bus != "spi" || (doc["interface"]["cs_pin"] | -1) != 14) return false;
-  } else return false;
-  JsonObjectConst params = doc["parameters"].as<JsonObjectConst>();
-  p.budget = params["timing_budget_ms"] | 50;
-  p.offset = params["read_offset"] | 0; p.length = params["read_length"] | 8;
-  p.wires = params["wires"] | 3;
-  p.nominal = params["rtd_nominal_ohm"] | 100.0f;
-  p.reference = params["reference_ohm"] | 430.0f;
-  return p.budget >= 10 && p.budget <= 200 && p.offset >= 0 &&
-    p.length >= 1 && p.length <= 16 && p.offset + p.length <= 2048 &&
-    p.wires >= 2 && p.wires <= 4 && isfinite(p.nominal) && isfinite(p.reference) &&
-    p.nominal > 0 && p.nominal <= 2000 && p.reference > p.nominal && p.reference <= 10000;
+void detect() {
+  stop(); active.reset();
+  unsigned matches = 0; size_t match = selected;
+  // Read-only probe sequences, never initialize devices while searching.
+  for (size_t i = 0; i < profiles.size(); ++i) {
+    JsonDocument doc;
+    if (!load(profiles[i].path, doc)) continue;
+    prepare(doc);
+    if (engine.run(doc["sequences"]["detect"].as<JsonArrayConst>(), true)) {
+      ++matches; match = i; Serial.println("Profil antwortet: " + profiles[i].name);
+    }
+  }
+  if (matches == 1) { selected = match; message = "1 Profil antwortet; Start zum Messen"; }
+  else if (matches == 0) message = "Kein Profil antwortet; Anschluss pruefen";
+  else message = String(matches) + " Profile antworten; mit Weiter waehlen";
+  value = "-";
 }
 void scanSD() {
-  stop(); rtd.reset(); profiles.clear(); selected = 0; value = "-";
-  SD.end(); sdReady = SD.begin(4, SPI, 10000000);
-  unsigned rejected = 0;
-  if (sdReady) {
-    File dir = SD.open("/sensors");
-    if (dir && dir.isDirectory()) {
-      for (File f = dir.openNextFile(); f; f = dir.openNextFile()) {
-        if (!f.isDirectory() && String(f.name()).endsWith(".json")) {
-          Profile p;
-          if (profiles.size() < 24 && loadProfile(f, p)) profiles.push_back(p);
-          else { ++rejected; Serial.printf("Profil ungueltig: %s\n", f.name()); }
-        }
-        f.close();
+  stop(); active.reset(); profiles.clear(); selected = 0; value = "-";
+  SD.end();
+  if (!SD.begin(4, SPI, 10000000)) { message = "SD fehlt / FAT32 pruefen"; draw(); return; }
+  File dir = SD.open("/sensors"); unsigned rejected = 0;
+  if (dir && dir.isDirectory()) {
+    for (File f = dir.openNextFile(); f; f = dir.openNextFile()) {
+      if (!f.isDirectory() && String(f.name()).endsWith(".json")) {
+        String path = f.path(); f.close(); JsonDocument doc;
+        if (profiles.size() < 24 && load(path, doc)) {
+          profiles.push_back({path, doc["name"].as<String>(), doc["sensor_type"].as<String>(), doc["group"].as<String>()});
+        } else { ++rejected; Serial.println(path + ": " + message); }
       }
+      f.close();
     }
-    message = String(profiles.size()) + " Profile; verworfen: " + rejected;
-  } else message = "SD fehlt / nicht lesbar (FAT32)";
-  draw();
+  }
+  detect();
+  message += "; verworfen: " + String(rejected); draw();
 }
 void start() {
   if (profiles.empty()) return;
-  auto &p = profiles[selected]; value = "-"; bool ok = false;
-  if (p.driver == "vl53l4cd") {
-    tof.begin();
-    ok = ack(p.address) && tof.InitSensor() == 0 &&
-      tof.VL53L4CD_SetRangeTiming(p.budget, 0) == 0 &&
-      tof.VL53L4CD_StartRanging() == 0;
-  } else if (p.driver == "vl6180x") {
-    ok = ack(p.address) && shortRange.begin(&sensorBus);
-  } else if (p.driver == "st25dv16") {
-    ok = ack(p.address);
-  } else {
-    rtd.reset(new Adafruit_MAX31865(14, &SPI));
-    auto mode = p.wires == 2 ? MAX31865_2WIRE : p.wires == 3 ? MAX31865_3WIRE : MAX31865_4WIRE;
-    rtd->begin(mode); rtd->enable50Hz(true);
-    // No chip-ID exists; require a plausible RTD read and no fault.
-    float temp = rtd->temperature(p.nominal, p.reference);
-    ok = rtd->readFault() == 0 && isfinite(temp) && temp >= -200 && temp <= 850;
+  active.reset(new JsonDocument());
+  if (!load(profiles[selected].path, *active)) { active.reset(); draw(); return; }
+  prepare(*active);
+  if (!sequence("detect", true)) { active.reset(); draw(); return; }
+  if (!sequence("init")) {
+    String cause = message; sequence("stop"); message = cause; active.reset(); draw(); return;
   }
-  running = ok; started = millis(); lastSample = millis() - p.interval;
-  message = ok ? "Gestartet" : "Nicht erkannt / Anschluss oder RTD pruefen";
-  draw();
-}
-// Bounded register access avoids the driver's unbounded single-shot wait loops.
-bool vl6180Read(uint16_t reg, uint8_t &result) {
-  sensorBus.beginTransmission(0x29);
-  sensorBus.write(uint8_t(reg >> 8)); sensorBus.write(uint8_t(reg));
-  if (sensorBus.endTransmission(false) ||
-      sensorBus.requestFrom(uint8_t(0x29), uint8_t(1)) != 1) return false;
-  result = sensorBus.read(); return true;
-}
-bool vl6180Write(uint16_t reg, uint8_t data) {
-  sensorBus.beginTransmission(0x29);
-  sensorBus.write(uint8_t(reg >> 8)); sensorBus.write(uint8_t(reg));
-  sensorBus.write(data); return sensorBus.endTransmission() == 0;
-}
-String measureVL6180() {
-  uint8_t status = 0, interrupt = 0, distance = 0;
-  if (!vl6180Read(VL6180X_REG_RESULT_RANGE_STATUS, status)) return "I2C Fehler";
-  if (!(status & 1)) return "Sensor nicht bereit";
-  if (!vl6180Write(VL6180X_REG_SYSTEM_INTERRUPT_CLEAR, 0x07) ||
-      !vl6180Write(VL6180X_REG_SYSRANGE_START, 1)) return "I2C Fehler";
-  const uint32_t since = millis();
-  do {
-    if (!vl6180Read(VL6180X_REG_RESULT_INTERRUPT_STATUS_GPIO, interrupt)) return "I2C Fehler";
-    if (interrupt & 4) {
-      bool ok = vl6180Read(VL6180X_REG_RESULT_RANGE_STATUS, status) &&
-        vl6180Read(VL6180X_REG_RESULT_RANGE_VAL, distance);
-      bool cleared = vl6180Write(VL6180X_REG_SYSTEM_INTERRUPT_CLEAR, 0x07);
-      if (!ok || !cleared) return "I2C Fehler";
-      if (status >> 4) return "Range Status " + String(status >> 4);
-      return String(distance) + " mm";
-    }
-    delay(2);
-  } while (millis() - since < 250);
-  return "Messung Timeout";
+  running = true;
+  lastSample = millis() - ((*active)["interval_ms"].as<uint32_t>());
+  message = "Profil gestartet"; value = "-"; draw();
 }
 void sample() {
-  const auto &p = profiles[selected];
-  if (p.driver == "vl53l4cd") {
-    uint8_t ready = 0;
-    if (tof.VL53L4CD_CheckForDataReady(&ready)) { value = "I2C Fehler"; }
-    else if (!ready) {
-      if (millis() - started > 2000) { value = "Timeout"; stop(); }
-      else return;
-    } else {
-      VL53L4CD_Result_t result{};
-      if (tof.VL53L4CD_GetResult(&result) || tof.VL53L4CD_ClearInterrupt()) value = "Lesefehler";
-      else if (result.range_status != 0) value = "Range Status " + String(result.range_status);
-      else value = String(result.distance_mm) + " mm";
-      started = millis();
-    }
-  } else if (p.driver == "vl6180x") {
-    value = measureVL6180();
-  } else if (p.driver == "st25dv16") {
-    // Read-only EEPROM probe. ACK + bytes does not prove the exact chip identity.
-    sensorBus.beginTransmission(p.address);
-    sensorBus.write(uint8_t(p.offset >> 8)); sensorBus.write(uint8_t(p.offset));
-    if (sensorBus.endTransmission(false) ||
-        sensorBus.requestFrom(p.address, uint8_t(p.length)) != p.length) value = "I2C Lesefehler";
-    else {
-      value = "";
-      while (sensorBus.available()) {
-        char hex[4]; snprintf(hex, sizeof(hex), "%02X ", sensorBus.read()); value += hex;
-      }
-    }
-    message = "EEPROM bytes; Modell nicht eindeutig bestaetigt";
-  } else {
-    float temp = rtd->temperature(p.nominal, p.reference);
-    uint8_t fault = rtd->readFault();
-    if (fault || !isfinite(temp) || temp < -200 || temp > 850) {
-      value = "RTD Fehler " + String(fault, HEX); rtd->clearFault();
-    } else value = String(temp, 2) + " C";
+  // Clear previous sample values: an output must be produced in this run.
+  engine.reset((*active)["constants"].as<JsonObjectConst>());
+  if (!sequence("measure")) {
+    String cause = message; value = "Messfehler"; stop(); message = cause; draw(); return;
   }
-  Serial.printf("%lu,%s,%s\n", millis(), p.type.c_str(), value.c_str());
-  draw();
+  value = "";
+  for (JsonObjectConst output : (*active)["outputs"].as<JsonArrayConst>()) {
+    const char *name = output["var"];
+    auto it = engine.variables.find(name);
+    if (it == engine.variables.end()) {
+      value = "Ausgabevariable fehlt"; stop(); draw(); return;
+    }
+    value += String(output["label"].as<const char*>()) + ": " + String(it->second, 3) + " " +
+      output["unit"].as<const char*>() + "\n";
+    Serial.printf("%lu,%s,%s,%.6f,%s\n", millis(), profiles[selected].type.c_str(), name,
+      it->second, output["unit"].as<const char*>());
+  }
+  message = "Messung OK"; draw();
 }
 void setup() {
-  auto cfg = M5.config(); M5.begin(cfg);
-  Serial.begin(115200); M5.Display.setRotation(1);
+  auto cfg = M5.config(); M5.begin(cfg); Serial.begin(115200);
+  M5.Display.setRotation(1);
   pinMode(14, OUTPUT); digitalWrite(14, HIGH);
   pinMode(4, OUTPUT); digitalWrite(4, HIGH);
   SPI.begin(18, 38, 23);
@@ -217,17 +190,17 @@ void setup() {
   scanSD();
 }
 void loop() {
-  M5.update();
-  auto t = M5.Touch.getDetail();
-  if (t.wasPressed() && t.y >= 205) {
-    if (t.x < 100) {
-      stop(); if (!profiles.empty()) selected = (selected + 1) % profiles.size();
-      value = "-"; message = "Profil gewaehlt; Start prueft Anschluss"; draw();
-    } else if (t.x < 245) {
+  M5.update(); auto touch = M5.Touch.getDetail();
+  if (touch.wasPressed() && touch.y >= 205) {
+    if (touch.x < 80) {
+      stop(); active.reset(); if (!profiles.empty()) selected = (selected + 1) % profiles.size();
+      value = "-"; message = "Profil gewaehlt"; draw();
+    } else if (touch.x < 160) {
       if (running) { stop(); message = "Gestoppt"; draw(); } else start();
-    } else scanSD();
+    } else if (touch.x < 240) { detect(); draw(); }
+    else scanSD();
   }
-  if (running && millis() - lastSample >= profiles[selected].interval) {
+  if (running && millis() - lastSample >= (*active)["interval_ms"].as<uint32_t>()) {
     lastSample = millis(); sample();
   }
   delay(5);

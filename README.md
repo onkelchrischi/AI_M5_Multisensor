@@ -1,111 +1,107 @@
-# M5 Core2 Sensor-Testsystem – erste Firmware
+# M5 Core2: Sensor-Testsystem mit JSON-Protokoll-Engine
 
-PlatformIO-Projekt für den klassischen M5Stack Core2 (ESP32), Arduino-Framework.
-Die Sensoren verwenden eingebaute Treiber; pro Sensor liegt eine eigene JSON-Datei
-auf der SD-Karte. Neue Parameter innerhalb dieser Treiber brauchen keinen neuen
-Flash-Vorgang. Neue Treibertypen benötigen eine Firmware-Erweiterung.
+**Alle Sensorabläufe liegen auf der SD-Karte.** Die Firmware enthält keine
+VL6180-, VL53L4CD-, MAX31865- oder ST25DV-Treiber. Sie interpretiert allgemeine
+Busoperationen, Prüfungen und Formeln aus jeweils einer JSON pro Sensor.
 
-## VS Code / Flashen
+Neue Sensoren benötigen nur eine neue JSON, sofern sich ihr Protokoll durch die
+unterstützten Operationen beschreiben lässt. Die aktuelle Engine unterstützt
+registerbasierte **I2C- und SPI-Geräte**. UART, analoge Spannungs-/Stromeingänge,
+CRC und spezielle Busprotokolle sind noch nicht implementiert. Dafür braucht die
+Engine eine entsprechende allgemeine Erweiterung. Unbekannte Operationen werden
+abgewiesen; es gibt keine versteckten Treiber-Fallbacks.
 
-1. VS Code mit der Erweiterung **PlatformIO IDE** installieren.
-2. Diesen Ordner öffnen, PlatformIO **Build** ausführen.
-3. Core2 per USB anschließen und **Upload** ausführen.
-4. Seriellen Monitor mit 115200 Baud öffnen.
+## Aktualisierung von der ersten Version
 
-Alternativ: `pio run`, `pio run -t upload`, `pio device monitor -b 115200`.
-Die SD-Karte wird separat befüllt; `uploadfs` ist dafür nicht geeignet.
+Einmalig ist ein Firmware-Upload nötig, weil die bisherige Version feste Treiber
+verwendete. Danach werden unterstützte Sensorprotokolle ausschließlich auf SD
+ergänzt oder geändert. **Die alten JSON-Dateien (schema_version 1) ersetzen:**
+Die neue Firmware erwartet Format 2 und weist alte Profile zurück.
 
-## SD-Karte und Bedienung
+1. In VS Code `git pull origin main` ausführen.
+2. PlatformIO IDE installieren und Projektordner mit `platformio.ini` öffnen.
+3. PlatformIO **Build** und mit per USB verbundenem Core2 **Upload** ausführen.
+4. Den Inhalt von `sd/sensors` nach `/sensors` auf eine FAT32-SD-Karte kopieren.
+5. Karte einlegen, Core2 starten oder **SD** im Display drücken.
 
-FAT32-formatierte Karte: den Ordner `sd/sensors` als `/sensors` auf die Karte
-kopieren. Jede Datei mit Endung `.json` ist ein Profil. Die Firmware lädt maximal
-24 Profile mit jeweils maximal 8 KiB. Fehlerhafte oder unbekannte Profile werden
-verworfen und ihr Dateiname im seriellen Monitor ausgegeben.
+CLI: `pio run`, `pio run -t upload`, `pio device monitor -b 115200`.
+Keine SD-Dateien über `uploadfs` übertragen.
 
-Unten im Touchdisplay:
+## Bedienung
 
-- **Weiter**: nächstes Profil, laufende Messung wird gestoppt.
-- **Start/Stop**: Anschluss prüfen und messen bzw. stoppen.
-- **SD**: Karte erneut einlesen. Vor Kartenwechsel Messung stoppen.
+- **Weiter**: nächstes Profil; vorherige Messung wird gestoppt.
+- **Start**: Erkennung, Initialisierung und wiederholte Messung des Profils;
+  während einer Messung stoppt derselbe Knopf.
+- **Auto**: nur lesende Erkennung aller Profile. Bei einem Treffer wird dieses
+  Profil ausgewählt; bei mehreren Treffern Auswahl mit Weiter. Start erfolgt manuell.
+- **SD**: Profile neu einlesen und automatisch prüfen. Vor Kartenwechsel stoppen.
 
-Angezeigt werden Name, Sensorgruppe, Sensortyp und aktueller Messwert bzw. Fehler.
-Messwerte erscheinen zusätzlich als `Millisekunden,Sensortyp,Wert` auf Serial.
-Es gibt in dieser Version keine SD-Messwertaufzeichnung, KI-Anbindung oder
-statistische Messwertanalyse. Nach dem Einschalten wird keine Messung gestartet.
-Die Profilauswahl erfolgt bewusst über Weiter; kein blindes Scannen aller Busse.
+Name, Sensortyp, Gruppe und Ausgabekanäle kommen aus der JSON. Messergebnisse
+erscheinen auf dem Display und im seriellen Monitor als
+`Millisekunden,Sensortyp,Variable,Wert,Einheit`. Es gibt noch keine SD-Aufzeichnung
+oder statistische Analyse. Bei einem Messfehler wird gestoppt und die im Profil
+hinterlegte Stoppsequenz versucht. Fehler beim Stoppen erscheinen auf Serial.
+Während einer Sequenz kann die Touch-Bedienung bis zu deren Ende verzögert sein;
+Polls sind begrenzt, eine gesamte Sequenz auf 10 Sekunden.
 
-## Verdrahtung
+## Anschlüsse / Board-Grenzen
 
-Nur geeignete Breakout-Module mit 3,3-V-kompatiblen Signalen verwenden.
-GND verbinden. Versorgung und Pinbelegung des konkreten Moduls vor Anschluss
-prüfen. Die 5-V-Versorgung am Grove-Port ist keine Freigabe für 5-V-I2C-Pegel.
-Keine Versorgung wird durch JSON automatisch umgeschaltet.
+Die Pins sind Bestandteil des Core2-Boardadapters, nicht des Sensorprotokolls.
+Profile können keine internen Touch-, Display- oder Versorgungspins umbelegen.
 
-| Baustein | Core2-Anschluss | Details |
+| Bus | Anschluss |
+|---|---|
+| I2C extern, 100 kHz | Port A: SDA GPIO32, SCL GPIO33 |
+| SPI | Erweiterungsanschluss: SCK GPIO18, MOSI GPIO23, MISO GPIO38, CS GPIO14 |
+| Interne SD-Karte | gemeinsamer SPI-Bus, eigener CS GPIO4 |
+
+SPI-Mode, Taktrate und Registeradressierung werden pro JSON konfiguriert.
+MAX31865-MISO muss bei inaktivem CS hochohmig sein. GND gemeinsam anschließen.
+Nur passende Breakouts mit 3,3-V-kompatiblen Signalen verwenden. Die
+5-V-Versorgung am Grove-Port bedeutet keine 5-V-Verträglichkeit der Datenpins.
+Versorgungsspannungen werden nicht automatisch umgeschaltet.
+
+## Enthaltene Protokollprofile
+
+| Datei | Inhalt | Erkennung |
 |---|---|---|
-| VL6180 / VL6180X | SDA GPIO32, SCL GPIO33 | externer Port A, I2C-Adresse 0x29; geeignetes Breakout verwenden |
-| VL53L4CDA / VL53L4CD | SDA GPIO32, SCL GPIO33 | externer Port A, I2C-Adresse 0x29; XSHUT muss am Modul freigegeben sein |
-| ST25DV16 | SDA GPIO32, SCL GPIO33 | EEPROM-Bereich 0x53 bei passenden Adresspins; 16-Bit-Speicheradresse |
-| MAX31865 | SCK GPIO18, MOSI GPIO23, MISO GPIO38, CS GPIO14 | SPI am Erweiterungsanschluss, gemeinsam mit internem SD-Bus; kein Grove-Anschluss |
+| `vl6180.json` | ST-Registerinitialisierung, Einzelmessung, Range-Status, mm | Modell-ID 0xB4 |
+| `vl53l4cda.json` | ST-Konfigurationsblock, VHV-Start, oszillatorabhängiges Timing, kontinuierliche Messung, mm | Modell-ID 0xEBAA |
+| `max31865.json` | Bias, Einzelmessung, Fehlerprüfung, Widerstand und PT100/PT1000-Formeln inkl. negativem Bereich | nur Plausibilität, keine Chip-ID |
+| `st25dv16.json` | zwei 32-Bit-Worte aus EEPROM 0..7, rein lesend | Adresse/Speicherantwort, kein eindeutiger Modellnachweis |
 
-MAX31865-MISO muss bei inaktivem CS hochohmig sein. CS14 ist ausschließlich für
-dieses Modul reserviert; SD verwendet CS4. Keine weiteren Geräte an dieselben
-CS-Pins anschließen. Alle Buspins sind in dieser Version fest vorgegeben, um
-interne Display-, Touch- und Stromversorgungspins zu schützen.
+VL6180 und VL53L4CD verwenden beide 0x29: vorerst nur einen gleichzeitig anschließen.
+Die automatische Suche beweist bei Geräten ohne Chip-ID nicht den genauen Typ.
+Kein Lux-Modus beim VL6180; beim ST25DV16 keine RF-Konfiguration oder Schreibzugriffe.
 
-### Sensorverhalten und Grenzen
+MAX31865-Konstanten: `rtd_nominal_ohm` = 100 (PT100) oder 1000 (PT1000),
+`reference_ohm` = tatsächlich bestückter Referenzwiderstand, `wire_bits` = 16 für
+3-Leiter, 0 für 2-/4-Leiter; Hardwarebrücken entsprechend setzen. `filter_bits` = 1
+für 50 Hz, 0 für 60 Hz. Beim VL53L4CD ist `timing_budget_ms` von 10 bis 200 zulässig.
 
-- **VL6180 / VL6180X:** Abstand in mm, Hersteller-Treiberinitialisierung mit
-  Modell-ID 0xB4. Messfehler werden als Range-Status angezeigt, nicht als Abstand.
-  Registerzugriffe haben I2C-Timeouts und die Messwartezeit ist auf 250 ms
-  begrenzt. Kein ALS-/Lux-Modus in dieser Version. VL6180 und VL53L4CD haben
-  beide Adresse 0x29: nur einen gleichzeitig an Port A anschließen.
-- **VL53L4CD:** ST-Treiber prüft Chip-ID 0xEBAA; Ausgabe in mm. Ein Range-Status
-  ungleich 0 ist kein gültiger Messwert. Budget 10–200 ms, fortlaufendes Ranging.
-- **ST25DV16:** liest 1–16 Bytes aus dem 2048-Byte-EEPROM. Keine Schreibzugriffe,
-  keine RF-Konfiguration und keine Passwortänderung. ACK und Speicherlesen
-  identifizieren das genaue ST25DV-Modell nicht eindeutig. Es ist ein NFC-Speicher,
-  kein physikalischer Messsensor; NFC-Zugriff per Telefon ist separat zu testen.
-- **MAX31865:** benötigt einen angeschlossenen Widerstandssensor. Beispiel für
-  PT100, 430-Ohm-Referenz und 3-Leiter-Anschluss. Für PT1000 beispielsweise
-  `rtd_nominal_ohm: 1000`, `reference_ohm: 4300` einstellen, sofern diese Referenz
-  tatsächlich auf dem Modul verbaut ist. `wires` muss zur Verdrahtung und zu den
-  Hardwarebrücken passen. 50-Hz-Filter ist aktiv. Der Chip hat keine eindeutige
-  ID; eine plausible Temperatur ohne Fehler ist nur eine Funktionsprüfung.
+## Eigene Profile und KI
 
-## JSON-Vertrag / KI-Vorlage
+Der [Profilvertrag](docs/PROFILE_FORMAT.md) beschreibt alle Operationen.
+Das [leere Template](docs/profile-template.json) ist die Ausgangsbasis für neue
+Sensoren; die vier SD-Profile zeigen vollständige Abläufe. Keine Sensornamen müssen
+in den Firmwarequellen ergänzt werden. Die [KI-Arbeitsanweisung](docs/AI_PROFILE_PROMPT.md)
+verlangt belegte Registerdaten und hält offene Angaben fest. Die Firmware lernt
+nicht eigenständig; geprüfte Profile und Korrekturen werden versioniert.
 
-Die vier Dateien unter `sd/sensors` sind die Ausgangsvorlagen. Pflichtfelder:
-`schema_version` (1), `name`, `sensor_type`, `group`, `driver`, `interface`.
-`name` und `group` müssen 1–40 Zeichen lang sein. `interval_ms` liegt zwischen
-100 und 60000 (Standard 1000). Adressen sind **dezimal und 7 Bit**: 41 bzw. 83.
-Treiber und Schnittstelle müssen zusammenpassen:
+## Prüfung
 
-| driver | interface | parameters |
-|---|---|---|
-| `vl6180x` | `type: i2c`, `address: 41` | `{}`; Einzelmessung, Standardintervall 500 ms im Beispiel |
-| `vl53l4cd` | `type: i2c`, `address: 41` | `timing_budget_ms`: 10–200, Standard 50 |
-| `st25dv16` | `type: i2c`, `address: 83` | `read_offset`: 0–2047, `read_length`: 1–16; Summe höchstens 2048 |
-| `max31865` | `type: spi`, `cs_pin: 14` | `wires`: 2/3/4, `rtd_nominal_ohm`: >0 bis 2000, `reference_ohm`: größer als nominal, höchstens 10000 |
+`pio run -j 4` erstellt die Core2-Firmware.
+`bash tools/test_engine.sh` prüft denselben C++-Interpreter auf Linux mit C++17,
+ArduinoJson aus `.pio/libdeps` und Address/UndefinedBehavior-Sanitizer.
 
-KI-Arbeitsanweisung: Aus dem Herstellerdatenblatt ein Profil nach einer dieser
-Vorlagen erstellen. Keine neuen Treibernamen, Registerprogramme oder Pinbelegungen
-erfinden. Modell, elektrische Anforderungen, Referenzwiderstand und Verdrahtung
-gegen das konkrete Breakout prüfen. Fehlende Angaben als offene Fragen melden.
-Generierte Profile vor Hardwarebetrieb überprüfen. Geprüfte Profile und
-Korrekturen versionieren; diese Firmware lernt nicht selbstständig.
+Die Tests simulieren die vier Geräte und prüfen detect/init/measure/stop,
+VL53-Timing gegen die ursprüngliche Integerberechnung, PT100/PT1000 bei 0 und
+negativer Temperatur, einen ausschließlich durch JSON hinzugefügten fünften
+Sensortyp sowie ungültige Profile, Rechenfehler, Busfehler, Poll- und Schleifenlimits.
+Simulationen ersetzen keine Hardwaretests. Alle vier neuen Protokollprofile
+müssen noch an den realen Sensoren geprüft werden; insbesondere Versorgung,
+Breakout-Varianten, Kalibrierung, Neustart, Start/Stopp und Sensorabziehen.
 
-## Validierung
-
-Ein erfolgreicher Build prüft die Übersetzbarkeit für den Core2. Hardwaretests
-stehen ohne angeschlossenes Gerät aus. Auf Hardware prüfen: Display/Touch, SD
-mit gültigem und ungültigem Profil, jeden Sensor einzeln, Start/Stopp,
-Sensor abziehen während Messung und Kartenwechsel mit anschließendem SD-Neuladen.
-Abstand mit Referenzstrecke und Temperatur mit bekanntem Widerstand prüfen.
-
-### Stand der Cloud-Prüfung
-
-Die vier JSON-Beispiele wurden erfolgreich geparst. Nach der Korrektur des
-ArduinoJson-7-Proxyzugriffs in `loadProfile` wurde `pio run -j 4` für
-`m5stack-core2` erfolgreich ausgeführt und `firmware.bin` erzeugt.
-Hardwaretests und Upload auf einen echten Core2 stehen weiterhin aus.
+Quellen und Lizenzhinweise der abgeleiteten Initialisierungsdaten und Formeln:
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Sensorbibliotheken sind keine
+Build-Abhängigkeiten mehr.

@@ -1,10 +1,304 @@
 {
-  "schema_version": 1,
-  "name": "MAX31865 mit PT100",
+  "schema_version": 2,
+  "name": "MAX31865 PT100",
   "sensor_type": "MAX31865",
   "group": "Temperatur",
-  "driver": "max31865",
-  "interface": {"type": "spi", "cs_pin": 14},
+  "interface": {
+    "type": "spi",
+    "cs_pin": 14,
+    "mode": 1,
+    "frequency_hz": 1000000,
+    "register_bytes": 1,
+    "write_mask": 128,
+    "read_mask": 0
+  },
   "interval_ms": 1000,
-  "parameters": {"wires": 3, "rtd_nominal_ohm": 100, "reference_ohm": 430}
+  "constants": {
+    "rtd_nominal_ohm": 100,
+    "reference_ohm": 430,
+    "wire_bits": 16,
+    "filter_bits": 1,
+    "A": 0.0039083,
+    "B": -5.775e-07
+  },
+  "sequences": {
+    "detect": [
+      {
+        "op": "read",
+        "reg": 0,
+        "bytes": 1,
+        "var": "config"
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$config",
+          12,
+          "&",
+          0,
+          "eq"
+        ],
+        "message": "Keine plausible SPI-Antwort"
+      },
+      {
+        "op": "read",
+        "reg": 7,
+        "bytes": 1,
+        "var": "fault"
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$fault",
+          3,
+          "&",
+          0,
+          "eq"
+        ],
+        "message": "Keine plausible SPI-Antwort"
+      }
+    ],
+    "init": [
+      {
+        "op": "write",
+        "reg": 0,
+        "bytes": 1,
+        "value": [
+          "$wire_bits",
+          "$filter_bits",
+          "|",
+          2,
+          "|"
+        ]
+      }
+    ],
+    "measure": [
+      {
+        "op": "write",
+        "reg": 0,
+        "bytes": 1,
+        "value": [
+          "$wire_bits",
+          "$filter_bits",
+          "|",
+          130,
+          "|"
+        ]
+      },
+      {
+        "op": "delay",
+        "ms": 10
+      },
+      {
+        "op": "write",
+        "reg": 0,
+        "bytes": 1,
+        "value": [
+          "$wire_bits",
+          "$filter_bits",
+          "|",
+          160,
+          "|"
+        ]
+      },
+      {
+        "op": "delay",
+        "ms": 65
+      },
+      {
+        "op": "read",
+        "reg": 1,
+        "bytes": 2,
+        "var": "raw"
+      },
+      {
+        "op": "read",
+        "reg": 7,
+        "bytes": 1,
+        "var": "fault"
+      },
+      {
+        "op": "write",
+        "reg": 0,
+        "bytes": 1,
+        "value": [
+          "$wire_bits",
+          "$filter_bits",
+          "|"
+        ]
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$fault",
+          0,
+          "eq"
+        ],
+        "message": "MAX31865 Fehlerregister ungleich null"
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$raw",
+          1,
+          "&",
+          0,
+          "eq"
+        ],
+        "message": "RTD Fehlerbit gesetzt"
+      },
+      {
+        "op": "calc",
+        "var": "rtd",
+        "expr": [
+          "$raw",
+          1,
+          ">>"
+        ]
+      },
+      {
+        "op": "calc",
+        "var": "resistance",
+        "expr": [
+          "$rtd",
+          32768,
+          "/",
+          "$reference_ohm",
+          "*"
+        ]
+      },
+      {
+        "op": "calc",
+        "var": "temperature",
+        "expr": [
+          "$A",
+          "$A",
+          "*",
+          4,
+          "$B",
+          "*",
+          "-",
+          4,
+          "$B",
+          "*",
+          "$rtd_nominal_ohm",
+          "/",
+          "$resistance",
+          "*",
+          "+",
+          "sqrt",
+          "$A",
+          "-",
+          2,
+          "$B",
+          "*",
+          "/"
+        ]
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$temperature",
+          0,
+          "lt"
+        ],
+        "then": [
+          {
+            "op": "calc",
+            "var": "norm",
+            "expr": [
+              "$resistance",
+              "$rtd_nominal_ohm",
+              "/",
+              100,
+              "*"
+            ]
+          },
+          {
+            "op": "calc",
+            "var": "temperature",
+            "expr": [
+              -242.02,
+              "$norm",
+              1,
+              "pow",
+              2.2228,
+              "*",
+              "+",
+              "$norm",
+              2,
+              "pow",
+              0.0025859,
+              "*",
+              "+",
+              "$norm",
+              3,
+              "pow",
+              -4.826e-06,
+              "*",
+              "+",
+              "$norm",
+              4,
+              "pow",
+              -2.8183e-08,
+              "*",
+              "+",
+              "$norm",
+              5,
+              "pow",
+              1.5243e-10,
+              "*",
+              "+"
+            ]
+          }
+        ]
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$temperature",
+          -200,
+          "ge"
+        ],
+        "message": "Temperatur unter -200 C"
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$temperature",
+          850,
+          "le"
+        ],
+        "message": "Temperatur ueber 850 C"
+      }
+    ],
+    "stop": [
+      {
+        "op": "write",
+        "reg": 0,
+        "bytes": 1,
+        "value": [
+          "$wire_bits",
+          "$filter_bits",
+          "|"
+        ]
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "var": "temperature",
+      "label": "Temperatur",
+      "unit": "C"
+    },
+    {
+      "var": "resistance",
+      "label": "Widerstand",
+      "unit": "Ohm"
+    }
+  ],
+  "notes": "Keine Chip-ID: Erkennung nur Plausibilitaet, kein Modellnachweis. PT100, 430 Ohm, 3-Leiter. wire_bits=16 fuer 3-Leiter, 0 fuer 2/4-Leiter; Hardwarebruecken beachten. filter_bits=1 fuer 50 Hz, 0 fuer 60 Hz. Fuer PT1000 nominal=1000 und reale Referenz angeben. Hardwaretest ausstehend.",
+  "sources": [
+    "https://github.com/adafruit/Adafruit_MAX31865/tree/1.6.2"
+  ]
 }

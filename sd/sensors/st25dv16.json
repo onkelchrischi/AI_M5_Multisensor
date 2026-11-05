@@ -1,10 +1,52 @@
 {
-  "schema_version": 1,
-  "name": "ST25DV16 NFC-Speicher",
+  "schema_version": 2,
+  "name": "ST25DV16 Speicher",
   "sensor_type": "ST25DV16",
   "group": "NFC / Speicher",
-  "driver": "st25dv16",
-  "interface": {"type": "i2c", "address": 83},
+  "interface": {
+    "type": "i2c",
+    "address": 83,
+    "register_bytes": 2
+  },
   "interval_ms": 1000,
-  "parameters": {"read_offset": 0, "read_length": 8}
+  "constants": {},
+  "sequences": {
+    "detect": [
+      {
+        "op": "read",
+        "reg": 0,
+        "bytes": 1,
+        "var": "probe"
+      }
+    ],
+    "init": [],
+    "measure": [
+      {
+        "op": "read",
+        "reg": 0,
+        "bytes": 4,
+        "var": "word0"
+      },
+      {
+        "op": "read",
+        "reg": 4,
+        "bytes": 4,
+        "var": "word1"
+      }
+    ],
+    "stop": []
+  },
+  "outputs": [
+    {
+      "var": "word0",
+      "label": "EEPROM 0..3",
+      "unit": "raw"
+    },
+    {
+      "var": "word1",
+      "label": "EEPROM 4..7",
+      "unit": "raw"
+    }
+  ],
+  "notes": "Nur lesender EEPROM-Zugriff. Keine eindeutige Modellidentifikation; andere Speicher auf 0x53 koennen ebenfalls antworten. Keine RF-Konfiguration, keine Schreibzugriffe. Hardwaretest ausstehend."
 }

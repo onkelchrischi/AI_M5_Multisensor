@@ -1,10 +1,361 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "VL6180 Abstand",
   "sensor_type": "VL6180 / VL6180X",
   "group": "Abstand",
-  "driver": "vl6180x",
-  "interface": {"type": "i2c", "address": 41},
+  "interface": {
+    "type": "i2c",
+    "address": 41,
+    "register_bytes": 2
+  },
   "interval_ms": 500,
-  "parameters": {}
+  "constants": {},
+  "sequences": {
+    "detect": [
+      {
+        "op": "read",
+        "reg": 0,
+        "bytes": 1,
+        "var": "model"
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$model",
+          180,
+          "eq"
+        ],
+        "message": "Modell-ID ungleich 0xB4"
+      }
+    ],
+    "init": [
+      {
+        "op": "read",
+        "reg": 22,
+        "bytes": 1,
+        "var": "fresh"
+      },
+      {
+        "op": "if",
+        "expr": [
+          "$fresh",
+          1,
+          "&"
+        ],
+        "then": [
+          {
+            "op": "write",
+            "reg": 519,
+            "bytes": 1,
+            "value": 1
+          },
+          {
+            "op": "write",
+            "reg": 520,
+            "bytes": 1,
+            "value": 1
+          },
+          {
+            "op": "write",
+            "reg": 150,
+            "bytes": 1,
+            "value": 0
+          },
+          {
+            "op": "write",
+            "reg": 151,
+            "bytes": 1,
+            "value": 253
+          },
+          {
+            "op": "write",
+            "reg": 227,
+            "bytes": 1,
+            "value": 0
+          },
+          {
+            "op": "write",
+            "reg": 228,
+            "bytes": 1,
+            "value": 4
+          },
+          {
+            "op": "write",
+            "reg": 229,
+            "bytes": 1,
+            "value": 2
+          },
+          {
+            "op": "write",
+            "reg": 230,
+            "bytes": 1,
+            "value": 1
+          },
+          {
+            "op": "write",
+            "reg": 231,
+            "bytes": 1,
+            "value": 3
+          },
+          {
+            "op": "write",
+            "reg": 245,
+            "bytes": 1,
+            "value": 2
+          },
+          {
+            "op": "write",
+            "reg": 217,
+            "bytes": 1,
+            "value": 5
+          },
+          {
+            "op": "write",
+            "reg": 219,
+            "bytes": 1,
+            "value": 206
+          },
+          {
+            "op": "write",
+            "reg": 220,
+            "bytes": 1,
+            "value": 3
+          },
+          {
+            "op": "write",
+            "reg": 221,
+            "bytes": 1,
+            "value": 248
+          },
+          {
+            "op": "write",
+            "reg": 159,
+            "bytes": 1,
+            "value": 0
+          },
+          {
+            "op": "write",
+            "reg": 163,
+            "bytes": 1,
+            "value": 60
+          },
+          {
+            "op": "write",
+            "reg": 183,
+            "bytes": 1,
+            "value": 0
+          },
+          {
+            "op": "write",
+            "reg": 187,
+            "bytes": 1,
+            "value": 60
+          },
+          {
+            "op": "write",
+            "reg": 178,
+            "bytes": 1,
+            "value": 9
+          },
+          {
+            "op": "write",
+            "reg": 202,
+            "bytes": 1,
+            "value": 9
+          },
+          {
+            "op": "write",
+            "reg": 408,
+            "bytes": 1,
+            "value": 1
+          },
+          {
+            "op": "write",
+            "reg": 432,
+            "bytes": 1,
+            "value": 23
+          },
+          {
+            "op": "write",
+            "reg": 429,
+            "bytes": 1,
+            "value": 0
+          },
+          {
+            "op": "write",
+            "reg": 255,
+            "bytes": 1,
+            "value": 5
+          },
+          {
+            "op": "write",
+            "reg": 256,
+            "bytes": 1,
+            "value": 5
+          },
+          {
+            "op": "write",
+            "reg": 409,
+            "bytes": 1,
+            "value": 5
+          },
+          {
+            "op": "write",
+            "reg": 422,
+            "bytes": 1,
+            "value": 27
+          },
+          {
+            "op": "write",
+            "reg": 428,
+            "bytes": 1,
+            "value": 62
+          },
+          {
+            "op": "write",
+            "reg": 423,
+            "bytes": 1,
+            "value": 31
+          },
+          {
+            "op": "write",
+            "reg": 48,
+            "bytes": 1,
+            "value": 0
+          },
+          {
+            "op": "write",
+            "reg": 17,
+            "bytes": 1,
+            "value": 16
+          },
+          {
+            "op": "write",
+            "reg": 266,
+            "bytes": 1,
+            "value": 48
+          },
+          {
+            "op": "write",
+            "reg": 63,
+            "bytes": 1,
+            "value": 70
+          },
+          {
+            "op": "write",
+            "reg": 49,
+            "bytes": 1,
+            "value": 255
+          },
+          {
+            "op": "write",
+            "reg": 65,
+            "bytes": 1,
+            "value": 99
+          },
+          {
+            "op": "write",
+            "reg": 46,
+            "bytes": 1,
+            "value": 1
+          },
+          {
+            "op": "write",
+            "reg": 27,
+            "bytes": 1,
+            "value": 9
+          },
+          {
+            "op": "write",
+            "reg": 62,
+            "bytes": 1,
+            "value": 49
+          },
+          {
+            "op": "write",
+            "reg": 20,
+            "bytes": 1,
+            "value": 36
+          },
+          {
+            "op": "write",
+            "reg": 22,
+            "bytes": 1,
+            "value": 0
+          }
+        ]
+      }
+    ],
+    "measure": [
+      {
+        "op": "poll",
+        "reg": 77,
+        "bytes": 1,
+        "mask": 1,
+        "equals": 1,
+        "timeout_ms": 250
+      },
+      {
+        "op": "write",
+        "reg": 21,
+        "bytes": 1,
+        "value": 7
+      },
+      {
+        "op": "write",
+        "reg": 24,
+        "bytes": 1,
+        "value": 1
+      },
+      {
+        "op": "poll",
+        "reg": 79,
+        "bytes": 1,
+        "mask": 4,
+        "equals": 4,
+        "timeout_ms": 250
+      },
+      {
+        "op": "read",
+        "reg": 77,
+        "bytes": 1,
+        "var": "status"
+      },
+      {
+        "op": "read",
+        "reg": 98,
+        "bytes": 1,
+        "var": "distance"
+      },
+      {
+        "op": "write",
+        "reg": 21,
+        "bytes": 1,
+        "value": 7
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$status",
+          4,
+          ">>",
+          0,
+          "eq"
+        ],
+        "message": "Ungueltiger Range-Status"
+      }
+    ],
+    "stop": []
+  },
+  "outputs": [
+    {
+      "var": "distance",
+      "label": "Abstand",
+      "unit": "mm"
+    }
+  ],
+  "notes": "Abgeleitet aus Adafruit VL6180X 1.4.4. Nur Abstand, kein ALS. Nicht gemeinsam mit anderem Geraet auf 0x29 betreiben. Hardwaretest ausstehend.",
+  "sources": [
+    "https://github.com/adafruit/Adafruit_VL6180X/tree/1.4.4"
+  ]
 }
