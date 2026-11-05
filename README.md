@@ -29,11 +29,18 @@ Keine SD-Dateien über `uploadfs` übertragen.
 
 ## Bedienung
 
-- **Weiter**: nächstes Profil; vorherige Messung wird gestoppt.
+- **Weiter**: manuelle Auswahl unter den Scan-Treffern (ohne Treffer unter allen
+  Profilen); vorherige Messung und Autoscan werden gestoppt.
 - **Start**: Erkennung, Initialisierung und wiederholte Messung des Profils;
   während einer Messung stoppt derselbe Knopf.
-- **Auto**: nur lesende Erkennung aller Profile. Bei einem Treffer wird dieses
-  Profil ausgewählt; bei mehreren Treffern Auswahl mit Weiter. Start erfolgt manuell.
+- **Auto**: periodischen Autoscan ein-/ausschalten. Er ist nach dem Einschalten
+  und nach SD-Neuladen aktiv und prüft im Ruhezustand alle drei Sekunden die
+  Profile. Pro Programmdurchlauf wird höchstens ein Profil geprüft. Ein Treffer
+  wird ausgewählt; bei mehreren Treffern Auswahl mit Weiter. Start erfolgt manuell.
+  Während einer Messung pausiert der Scan; nach Stop oder Messfehler läuft er
+  weiter, sofern nicht ausgeschaltet. Sensorwechsel werden so ohne Neustart erkannt.
+  Kein Treffer zeigt ausdrücklich „Kein Sensor erkannt“, statt das erste Profil
+  als angeschlossenen Sensor auszugeben.
 - **SD**: Profile neu einlesen und automatisch prüfen. Vor Kartenwechsel stoppen.
 
 Name, Sensortyp, Gruppe und Ausgabekanäle kommen aus der JSON. Messergebnisse
@@ -72,6 +79,10 @@ Versorgungsspannungen werden nicht automatisch umgeschaltet.
 
 VL6180 und VL53L4CD verwenden beide 0x29: vorerst nur einen gleichzeitig anschließen.
 Die automatische Suche beweist bei Geräten ohne Chip-ID nicht den genauen Typ.
+Profile mit `identification: "model_id"` melden einen Modell-ID-Treffer; bei
+`"response"` (Standard) steht „Profil plausibel; Modell nicht bestätigt“. Die
+Angabe muss zur lesenden `detect`-Sequenz passen. Die Suche berücksichtigt nur
+Profile auf der SD-Karte und kann Sensoren ohne passendes Profil nicht bestimmen.
 Kein Lux-Modus beim VL6180; beim ST25DV16 keine RF-Konfiguration oder Schreibzugriffe.
 
 MAX31865-Konstanten: `rtd_nominal_ohm` = 100 (PT100) oder 1000 (PT1000),
@@ -98,6 +109,8 @@ Die Tests simulieren die vier Geräte und prüfen detect/init/measure/stop,
 VL53-Timing gegen die ursprüngliche Integerberechnung, PT100/PT1000 bei 0 und
 negativer Temperatur, einen ausschließlich durch JSON hinzugefügten fünften
 Sensortyp sowie ungültige Profile, Rechenfehler, Busfehler, Poll- und Schleifenlimits.
+Autoscan-Tests prüfen periodische Planung, einen Probezugriff je Durchlauf,
+Mehrdeutigkeit, Sensorwechsel/Abziehen und millis-Überlauf.
 Simulationen ersetzen keine Hardwaretests. Alle vier neuen Protokollprofile
 müssen noch an den realen Sensoren geprüft werden; insbesondere Versorgung,
 Breakout-Varianten, Kalibrierung, Neustart, Start/Stopp und Sensorabziehen.

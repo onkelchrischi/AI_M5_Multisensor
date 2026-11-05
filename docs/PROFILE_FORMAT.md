@@ -29,6 +29,20 @@ Mode 0..3, 10 kHz..10 MHz, MSB zuerst. Die Maske wird auf das erste Registerbyte
 geodert. CS bleibt während Register und Nutzdaten aktiv. Keine beliebigen
 GPIO-Adressen, Pinumschaltungen, CS- oder Raw-Command-Sequenzen in Version 2.
 
+## Automatische Erkennung
+
+Optionales Feld `identification`: `model_id` oder `response` (Standard).
+`model_id` nur verwenden, wenn `detect` eine verlässliche Modellkennung liest
+und mittels `assert` überprüft. Sonst `response`: das Display kennzeichnet den
+Treffer als plausibel, nicht als eindeutig identifiziert. Das Feld ergänzt nur
+die Aussagekraft; alle Register und Prüfschritte bleiben in `detect`.
+
+Der Autoscan lädt die Profile regelmäßig und führt ausschließlich ihre lesenden
+Erkennungssequenzen aus. Ein eindeutiger Treffer wird ausgewählt; bei mehreren
+Treffern erfolgt keine automatische Auswahl. Kein Treffer löscht die automatische
+Auswahl. Messungen starten weiterhin über Start. Im Messbetrieb wird nicht gescannt.
+Neue Profile mit SD-Neuladen aufnehmen; Autoscan ersetzt kein SD-Neuladen.
+
 ## Operationen
 
 Alle Register und Bytewerte sind JSON-Zahlen (dezimal, keine Hex-Strings).

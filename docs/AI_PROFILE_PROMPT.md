@@ -13,6 +13,7 @@ Core2-Verdrahtung, gewünschte Messgrößen und Messrate.
 2. Busadresse/Registerbreite, Protokoll, Bytefolge und signedness belegen.
 3. detect ausschließlich lesend formulieren, Chip-ID prüfen falls vorhanden.
    Adressantwort ohne Modell-ID ausdrücklich als unsicher dokumentieren.
+   identification nur bei überprüfter Modell-ID auf model_id setzen, sonst response.
 4. Vollständige Start-/Initialisierungssequenz mit Hersteller-Konfiguration,
    Wartezeiten und zeitlich begrenzten Bereitschaftsabfragen erstellen.
 5. Messsequenz mit Fehlerstatus, Kalibrierregistern, Umrechnung und Einheiten

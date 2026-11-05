@@ -3,6 +3,8 @@
 #include <SPI.h>
 #include <Wire.h>
 #include "ProtocolEngine.h"
+#include "AutoScan.h"
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -58,7 +60,10 @@ public:
   void wait(uint32_t ms) override { delay(ms); }
 } bus;
 ProtocolEngine engine(bus);
-struct Profile { String path, name, type, group; };
+struct Profile { String path, name, type, group; bool modelId; };
+AutoScan autoScan;
+bool sensorSelected = false;
+unsigned rejectedProfiles = 0;
 std::vector<Profile> profiles;
 std::unique_ptr<JsonDocument> active;
 size_t selected = 0;
@@ -70,16 +75,19 @@ void draw() {
   auto &d = M5.Display;
   d.fillScreen(TFT_BLACK); d.setTextColor(TFT_WHITE); d.setTextSize(2);
   d.setCursor(8, 8); d.println("Sensor JSON Engine v2");
-  if (!profiles.empty()) {
+  if (sensorSelected && !profiles.empty()) {
     const auto &p = profiles[selected];
     d.setCursor(8, 40); d.println(p.name);
     d.setCursor(8, 65); d.println(p.group);
     d.setTextSize(1); d.setCursor(8, 92); d.println(p.type);
+  } else {
+    d.setCursor(8, 45); d.println("Kein Sensor erkannt");
   }
   d.setTextSize(1); d.setTextColor(TFT_CYAN);
   d.setCursor(8, 112); d.println(value);
   d.setTextColor(TFT_WHITE); d.setCursor(8, 165); d.println(message);
-  d.setCursor(8, 190); d.println(running ? "Messung aktiv" : "Gestoppt");
+  d.setCursor(8, 190); d.println(running ? "Messung aktiv / Scan pausiert" :
+    autoScan.enabled ? "Autoscan EIN (alle 3 s)" : "Autoscan AUS / manuelle Auswahl");
   d.drawFastHLine(0, 205, 320, TFT_WHITE);
   d.setTextSize(2);
   const char *labels[] = {"Weiter", "Start", "Auto", "SD"};
@@ -111,44 +119,69 @@ void stop() {
   }
   running = false;
 }
-void detect() {
-  stop(); active.reset();
-  unsigned matches = 0; size_t match = selected;
-  // Read-only probe sequences, never initialize devices while searching.
-  for (size_t i = 0; i < profiles.size(); ++i) {
+void scanTick() {
+  // Never change the bus or profile while a measurement is active.
+  if (running || profiles.empty() || !autoScan.enabled) return;
+  bool complete = autoScan.tick(millis(), profiles.size(), [](size_t i) {
     JsonDocument doc;
-    if (!load(profiles[i].path, doc)) continue;
-    prepare(doc);
-    if (engine.run(doc["sequences"]["detect"].as<JsonArrayConst>(), true)) {
-      ++matches; match = i; Serial.println("Profil antwortet: " + profiles[i].name);
+    String previousMessage = message;
+    if (!load(profiles[i].path, doc)) {
+      Serial.println("Autoscan: " + profiles[i].path + ": " + message);
+      message = previousMessage; return false;
     }
+    prepare(doc);
+    bool match = engine.run(doc["sequences"]["detect"].as<JsonArrayConst>(), true);
+    message = previousMessage;
+    return match;
+  });
+  if (!complete) return;
+  bool wasSelected = sensorSelected;
+  size_t previousSelection = selected;
+  String previousMessage = message;
+  sensorSelected = autoScan.matches.size() == 1;
+  if (sensorSelected) {
+    selected = autoScan.matches.front();
+    message = profiles[selected].modelId ? "Sensor erkannt (Modell-ID); Start" :
+      "Profil plausibel; Modell nicht bestaetigt";
+  } else if (autoScan.matches.empty()) {
+    message = "Kein Profil antwortet; Anschluss / SD pruefen";
+  } else {
+    message = String(autoScan.matches.size()) + " Treffer: mit Weiter waehlen";
   }
-  if (matches == 1) { selected = match; message = "1 Profil antwortet; Start zum Messen"; }
-  else if (matches == 0) message = "Kein Profil antwortet; Anschluss pruefen";
-  else message = String(matches) + " Profile antworten; mit Weiter waehlen";
-  value = "-";
+  if (rejectedProfiles) message += "; ungueltige JSON: " + String(rejectedProfiles);
+  if (wasSelected != sensorSelected || previousSelection != selected || message != previousMessage) {
+    value = "-"; Serial.println("Autoscan: " + message);
+    for (size_t index : autoScan.matches) Serial.println("  Treffer: " + profiles[index].name);
+    draw();
+  }
 }
 void scanSD() {
-  stop(); active.reset(); profiles.clear(); selected = 0; value = "-";
+  stop(); active.reset(); profiles.clear(); selected = 0; sensorSelected = false; value = "-";
+  autoScan.matches.clear(); autoScan.enable(millis()); rejectedProfiles = 0;
   SD.end();
   if (!SD.begin(4, SPI, 10000000)) { message = "SD fehlt / FAT32 pruefen"; draw(); return; }
-  File dir = SD.open("/sensors"); unsigned rejected = 0;
+  File dir = SD.open("/sensors");
   if (dir && dir.isDirectory()) {
     for (File f = dir.openNextFile(); f; f = dir.openNextFile()) {
       if (!f.isDirectory() && String(f.name()).endsWith(".json")) {
         String path = f.path(); f.close(); JsonDocument doc;
         if (profiles.size() < 24 && load(path, doc)) {
-          profiles.push_back({path, doc["name"].as<String>(), doc["sensor_type"].as<String>(), doc["group"].as<String>()});
-        } else { ++rejected; Serial.println(path + ": " + message); }
+          profiles.push_back({path, doc["name"].as<String>(), doc["sensor_type"].as<String>(), doc["group"].as<String>(),
+            String(doc["identification"] | "response") == "model_id"});
+        } else { ++rejectedProfiles; Serial.println(path + ": " + message); }
       }
       f.close();
     }
   }
-  detect();
-  message += "; verworfen: " + String(rejected); draw();
+  message = profiles.empty() ? "Keine gueltigen Profile auf SD" : "Autoscan sucht Sensor...";
+  if (rejectedProfiles) message += "; ungueltige JSON: " + String(rejectedProfiles);
+  draw();
 }
 void start() {
-  if (profiles.empty()) return;
+  if (profiles.empty() || !sensorSelected) {
+    message = "Erst Sensor erkennen / Profil waehlen"; draw(); return;
+  }
+  autoScan.restart(millis());
   active.reset(new JsonDocument());
   if (!load(profiles[selected].path, *active)) { active.reset(); draw(); return; }
   prepare(*active);
@@ -193,15 +226,30 @@ void loop() {
   M5.update(); auto touch = M5.Touch.getDetail();
   if (touch.wasPressed() && touch.y >= 205) {
     if (touch.x < 80) {
-      stop(); active.reset(); if (!profiles.empty()) selected = (selected + 1) % profiles.size();
-      value = "-"; message = "Profil gewaehlt"; draw();
+      stop(); active.reset(); autoScan.disable();
+      if (!autoScan.matches.empty()) {
+        auto it = std::find(autoScan.matches.begin(), autoScan.matches.end(), selected);
+        if (!sensorSelected || it == autoScan.matches.end() || ++it == autoScan.matches.end())
+          selected = autoScan.matches.front();
+        else selected = *it;
+        sensorSelected = true;
+      } else if (!profiles.empty()) {
+        selected = sensorSelected ? (selected + 1) % profiles.size() : 0;
+        sensorSelected = true;
+      }
+      value = "-"; message = "Manuelles Profil; Start prueft Anschluss"; draw();
     } else if (touch.x < 160) {
       if (running) { stop(); message = "Gestoppt"; draw(); } else start();
-    } else if (touch.x < 240) { detect(); draw(); }
+    } else if (touch.x < 240) {
+      if (autoScan.enabled) { autoScan.disable(); message = "Autoscan ausgeschaltet"; }
+      else { autoScan.enable(millis()); message = "Autoscan eingeschaltet"; }
+      draw();
+    }
     else scanSD();
   }
   if (running && millis() - lastSample >= (*active)["interval_ms"].as<uint32_t>()) {
     lastSample = millis(); sample();
   }
+  scanTick();
   delay(5);
 }

@@ -1,4 +1,5 @@
 #include "ProtocolEngine.h"
+#include "AutoScan.h"
 #include <cassert>
 #include <fstream>
 #include <iostream>
@@ -146,4 +147,45 @@ void newSensorWithoutFirmwareChanges() {
   require(sequence(e,p,"measure"),e); assert(e.variables.at("temperature")==-10);
   std::cout<<"New device defined exclusively in JSON OK\n";
 }
-int main(){profiles();failures();newSensorWithoutFirmwareChanges();}
+void autoScanTests() {
+  AutoScan scan; unsigned probes = 0;
+  std::vector<bool> connected = {false,true,false};
+  auto probe = [&](size_t i) { ++probes; return connected.at(i); };
+  assert(!scan.tick(0,3,probe)); assert(probes==1);
+  assert(!scan.tick(5,3,probe)); assert(scan.matches.empty());
+  assert(scan.tick(10,3,probe)); assert(scan.matches==std::vector<size_t>{1});
+  assert(!scan.tick(100,3,probe)); assert(probes==3);
+  connected={true,false,true};
+  assert(!scan.tick(3010,3,probe)); assert(scan.matches==std::vector<size_t>{1});
+  assert(!scan.tick(3015,3,probe)); assert(scan.tick(3020,3,probe));
+  assert((scan.matches==std::vector<size_t>{0,2})); // ambiguous
+  scan.disable(); assert(!scan.tick(10000,3,probe)); assert(probes==6);
+  scan.enable(10000); connected={false,false,false};
+  assert(!scan.tick(10000,3,probe)); assert(!scan.tick(10005,3,probe));
+  assert(scan.tick(10010,3,probe)); assert(scan.matches.empty()); // unplugged
+  scan.restart(UINT32_MAX-5); assert(!scan.tick(UINT32_MAX-5,3,probe));
+  assert(!scan.tick(UINT32_MAX-1,3,probe)); assert(scan.tick(0,3,probe));
+  assert(!scan.tick(100,3,probe)); // next scan scheduled across millis wrap
+  scan.restart(200); assert(scan.tick(200,0,probe)); assert(scan.matches.empty());
+
+  // Scan real profile detect sequences with one simulated shared I2C bus.
+  std::vector<JsonDocument> p;
+  p.push_back(load("sd/sensors/vl6180.json"));
+  p.push_back(load("sd/sensors/vl53l4cda.json"));
+  FakeBus b; b.number(0,180,1); ProtocolEngine e(b); scan.restart(0);
+  auto profileProbe=[&](size_t i) {
+    require(e.validate(p[i].as<JsonObjectConst>()),e);
+    e.reset(p[i]["constants"].as<JsonObjectConst>());
+    return sequence(e,p[i],"detect");
+  };
+  assert(!scan.tick(0,2,profileProbe)); assert(scan.tick(1,2,profileProbe));
+  assert(scan.matches==std::vector<size_t>{0});
+  b.memory.clear(); b.number(0x10f,0xebaa,2); scan.restart(100);
+  assert(!scan.tick(100,2,profileProbe)); assert(scan.tick(101,2,profileProbe));
+  assert(scan.matches==std::vector<size_t>{1}); // different connected sensor
+  b.memory.clear(); scan.restart(200);
+  assert(!scan.tick(200,2,profileProbe)); assert(scan.tick(201,2,profileProbe));
+  assert(scan.matches.empty()); assert(b.writes.empty());
+  std::cout<<"Autoscan: scheduling, ambiguity, unplug/replug, model IDs and read-only probes OK\n";
+}
+int main(){profiles();failures();newSensorWithoutFirmwareChanges();autoScanTests();}

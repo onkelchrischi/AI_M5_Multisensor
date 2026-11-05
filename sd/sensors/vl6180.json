@@ -357,5 +357,6 @@
   "notes": "Abgeleitet aus Adafruit VL6180X 1.4.4. Nur Abstand, kein ALS. Nicht gemeinsam mit anderem Geraet auf 0x29 betreiben. Hardwaretest ausstehend.",
   "sources": [
     "https://github.com/adafruit/Adafruit_VL6180X/tree/1.4.4"
-  ]
+  ],
+  "identification": "model_id"
 }

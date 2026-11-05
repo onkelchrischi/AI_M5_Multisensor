@@ -48,5 +48,6 @@
       "unit": "raw"
     }
   ],
-  "notes": "Nur lesender EEPROM-Zugriff. Keine eindeutige Modellidentifikation; andere Speicher auf 0x53 koennen ebenfalls antworten. Keine RF-Konfiguration, keine Schreibzugriffe. Hardwaretest ausstehend."
+  "notes": "Nur lesender EEPROM-Zugriff. Keine eindeutige Modellidentifikation; andere Speicher auf 0x53 koennen ebenfalls antworten. Keine RF-Konfiguration, keine Schreibzugriffe. Hardwaretest ausstehend.",
+  "identification": "response"
 }

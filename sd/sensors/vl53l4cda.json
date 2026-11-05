@@ -512,5 +512,6 @@
   "notes": "Initialisierung und kontinuierliches Ranging nach ST VL53L4CD 1.0.5. timing_budget_ms 10..200. Standard-Interruptpolaritaet aktiv LOW. Hardwaretest ausstehend.",
   "sources": [
     "https://github.com/stm32duino/VL53L4CD/tree/1.0.5"
-  ]
+  ],
+  "identification": "model_id"
 }

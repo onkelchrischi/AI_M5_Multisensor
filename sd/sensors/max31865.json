@@ -300,5 +300,6 @@
   "notes": "Keine Chip-ID: Erkennung nur Plausibilitaet, kein Modellnachweis. PT100, 430 Ohm, 3-Leiter. wire_bits=16 fuer 3-Leiter, 0 fuer 2/4-Leiter; Hardwarebruecken beachten. filter_bits=1 fuer 50 Hz, 0 fuer 60 Hz. Fuer PT1000 nominal=1000 und reale Referenz angeben. Hardwaretest ausstehend.",
   "sources": [
     "https://github.com/adafruit/Adafruit_MAX31865/tree/1.6.2"
-  ]
+  ],
+  "identification": "response"
 }
