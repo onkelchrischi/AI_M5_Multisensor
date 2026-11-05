@@ -70,33 +70,75 @@ bool running = false;
 uint32_t lastSample = 0;
 String message, value = "-";
 
+// Each region is composed off-screen and transferred only when its content changes.
+// Keep the previous pixels visible until the completed replacement is ready.
+class DisplayRegion {
+  M5Canvas canvas;
+  const int y, height;
+  String previous;
+  bool ready = false, drawn = false;
+public:
+  DisplayRegion(int top, int rows) : canvas(&M5.Display), y(top), height(rows) {}
+  template<class Paint>
+  void update(const String &key, Paint paint) {
+    if (drawn && key == previous) return;
+    if (!ready) {
+      canvas.setColorDepth(16);
+      if (!canvas.createSprite(320, height)) {
+        Serial.println("Display: Bildpuffer konnte nicht angelegt werden");
+        return;
+      }
+      ready = true;
+    }
+    canvas.fillScreen(TFT_BLACK);
+    canvas.setTextColor(TFT_WHITE); canvas.setTextSize(1);
+    canvas.setTextWrap(true);
+    paint(canvas);
+    canvas.pushSprite(0, y);
+    previous = key; drawn = true;
+  }
+};
+DisplayRegion profileRegion(35, 70), valueRegion(108, 54), messageRegion(164, 24),
+  stateRegion(188, 16), buttonRegion(205, 35);
+
 void draw() {
-  auto &d = M5.Display;
-  d.fillScreen(TFT_BLACK); d.setTextColor(TFT_WHITE); d.setTextSize(2);
-  d.setCursor(8, 8); d.println("Sensor JSON Engine v2");
-  if (sensorSelected && !profiles.empty()) {
-    const auto &p = profiles[selected];
-    d.setCursor(8, 40); d.println(p.name);
-    d.setCursor(8, 65); d.println(p.group);
-    d.setTextSize(1); d.setCursor(8, 92); d.println(p.type);
-  } else {
-    d.setCursor(8, 45); d.println("Kein Sensor erkannt");
+  static bool initialized = false;
+  if (!initialized) {
+    M5.Display.fillScreen(TFT_BLACK);
+    M5.Display.setTextColor(TFT_WHITE); M5.Display.setTextSize(2);
+    M5.Display.setCursor(8, 8); M5.Display.print("Sensor JSON Engine v2");
+    initialized = true;
   }
-  d.setTextSize(1); d.setTextColor(TFT_CYAN);
-  d.setCursor(8, 112); d.println(value);
-  d.setTextColor(TFT_WHITE); d.setCursor(8, 165); d.println(message);
-  d.setCursor(8, 190); d.println(running ? "Sensorauswertung aktiv" :
-    autoScan.enabled ? "Autoscan EIN (alle 3 s)" : "Autoscan AUS");
-  const char *top[] = {"Autoscan", running ? "Stop" : "Start", "Sensor"};
-  const char *bottom[] = {autoScan.enabled ? "EIN" : "AUS", "Auswertung", "durchblaettern"};
-  d.setTextSize(1);
-  for (unsigned i = 0; i < 3; ++i) {
-    int left = i * 320 / 3, right = (i + 1) * 320 / 3;
-    d.drawRect(left, 205, right - left, 35, TFT_WHITE);
-    d.setCursor(left + 8, 212); d.print(top[i]);
-    d.setCursor(left + 8, 225); d.print(bottom[i]);
-  }
+  bool hasProfile = sensorSelected && !profiles.empty();
+  String name = hasProfile ? profiles[selected].name : "Kein Sensor erkannt";
+  String group = hasProfile ? profiles[selected].group : "";
+  String type = hasProfile ? profiles[selected].type : "";
+  profileRegion.update(name + "\n" + group + "\n" + type, [&](M5Canvas &c) {
+    c.setTextSize(2); c.setCursor(8, 5); c.println(name);
+    c.setCursor(8, 30); c.println(group);
+    c.setTextSize(1); c.setCursor(8, 57); c.print(type);
+  });
+  valueRegion.update(value, [&](M5Canvas &c) {
+    c.setTextColor(TFT_CYAN); c.setCursor(8, 4); c.print(value);
+  });
+  messageRegion.update(message, [&](M5Canvas &c) {
+    c.setCursor(8, 1); c.print(message);
+  });
+  String state = running ? "Sensorauswertung aktiv" :
+    autoScan.enabled ? "Autoscan EIN (alle 3 s)" : "Autoscan AUS";
+  stateRegion.update(state, [&](M5Canvas &c) { c.setCursor(8, 2); c.print(state); });
+  buttonRegion.update(String(running) + ":" + String(autoScan.enabled), [&](M5Canvas &c) {
+    const char *top[] = {"Autoscan", running ? "Stop" : "Start", "Sensor"};
+    const char *bottom[] = {autoScan.enabled ? "EIN" : "AUS", "Auswertung", "durchblaettern"};
+    for (unsigned i = 0; i < 3; ++i) {
+      int left = i * 320 / 3, right = (i + 1) * 320 / 3;
+      c.drawRect(left, 0, right - left, 35, TFT_WHITE);
+      c.setCursor(left + 8, 7); c.print(top[i]);
+      c.setCursor(left + 8, 20); c.print(bottom[i]);
+    }
+  });
 }
+
 bool load(const String &path, JsonDocument &doc) {
   File f = SD.open(path);
   if (!f || f.size() > 32768 || deserializeJson(doc, f)) {

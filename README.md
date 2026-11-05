@@ -59,6 +59,16 @@ Messung ersetzt die Fehlermeldung automatisch. Fehler beim Stoppen erscheinen au
 Während einer Sequenz kann die Touch-Bedienung bis zu deren Ende verzögert sein;
 Polls sind begrenzt, eine gesamte Sequenz auf 10 Sekunden.
 
+## Display-Aktualisierung
+
+Der Bildschirm wird nur beim ersten Zeichnen vollständig gelöscht. Sensorinfos,
+Messwerte, Meldung, Betriebszustand und Tasten besitzen getrennte Bildpuffer.
+Nur bei geändertem Inhalt wird der jeweilige Bereich im Hintergrund gezeichnet
+und anschließend als fertiges Bild übertragen. Gleichbleibende Messwerte und
+Bedienelemente werden nicht erneut gezeichnet. Die Puffer belegen zusammen etwa
+125 KiB zusätzlich zur Firmware; der Core2 besitzt dafür PSRAM. Eine Sichtprüfung
+auf echter Hardware steht noch aus.
+
 ## Anschlüsse / Board-Grenzen
 
 Die Pins sind Bestandteil des Core2-Boardadapters, nicht des Sensorprotokolls.
