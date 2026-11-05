@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "name": "MAX31865 mit PT100",
+  "sensor_type": "MAX31865",
+  "group": "Temperatur",
+  "driver": "max31865",
+  "interface": {"type": "spi", "cs_pin": 14},
+  "interval_ms": 1000,
+  "parameters": {"wires": 3, "rtd_nominal_ohm": 100, "reference_ohm": 430}
+}

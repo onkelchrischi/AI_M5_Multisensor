@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "name": "VL53L4CDA Abstand",
+  "sensor_type": "VL53L4CDA",
+  "group": "Abstand",
+  "driver": "vl53l4cd",
+  "interface": {"type": "i2c", "address": 41},
+  "interval_ms": 500,
+  "parameters": {"timing_budget_ms": 50}
+}
