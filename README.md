@@ -29,19 +29,25 @@ Keine SD-Dateien über `uploadfs` übertragen.
 
 ## Bedienung
 
-- **Weiter**: manuelle Auswahl unter den Scan-Treffern (ohne Treffer unter allen
-  Profilen); vorherige Messung und Autoscan werden gestoppt.
-- **Start**: Erkennung, Initialisierung und wiederholte Messung des Profils;
-  während einer Messung stoppt derselbe Knopf.
-- **Auto**: periodischen Autoscan ein-/ausschalten. Er ist nach dem Einschalten
-  und nach SD-Neuladen aktiv und prüft im Ruhezustand alle drei Sekunden die
-  Profile. Pro Programmdurchlauf wird höchstens ein Profil geprüft. Ein Treffer
-  wird ausgewählt; bei mehreren Treffern Auswahl mit Weiter. Start erfolgt manuell.
-  Während einer Messung pausiert der Scan; nach Stop oder Messfehler läuft er
-  weiter, sofern nicht ausgeschaltet. Sensorwechsel werden so ohne Neustart erkannt.
-  Kein Treffer zeigt ausdrücklich „Kein Sensor erkannt“, statt das erste Profil
-  als angeschlossenen Sensor auszugeben.
-- **SD**: Profile neu einlesen und automatisch prüfen. Vor Kartenwechsel stoppen.
+Genau drei Touch-Schaltflächen, von links nach rechts:
+
+- **Autoscan**: Suche ein-/ausschalten. Beim Einschalten des Core2 läuft sie
+  automatisch. Ohne eindeutigen Treffer wird alle drei Sekunden erneut gesucht.
+  Sobald genau ein Profil antwortet, wird es ausgewählt und der Autoscan
+  **automatisch deaktiviert**. Ein erneuter Druck startet eine neue Suche und
+  lädt dabei auch die SD-Profile neu. Es gibt keinen separaten SD-Knopf mehr.
+- **Start/Stop Auswertung**: Sensor prüfen, initialisieren und Messung starten
+  bzw. stoppen. Die Suche bleibt nach Stop oder Messfehler ausgeschaltet.
+  Ein Sensorwechsel erfordert einen neuen Autoscan. Eine neue Suche beendet
+  eine laufende Auswertung zuerst.
+- **Sensor durchblättern**: alle geladenen Profile nacheinander anzeigen.
+  Laufende Auswertung und Autoscan werden beendet. Start prüft den Anschluss
+  erneut, bevor dieses Profil initialisiert wird.
+
+Bei mehreren Treffern erfolgt keine automatische Auswahl. Mit Sensor
+manuell wählen oder Autoscan ausschalten. Ohne Treffer wird kein beliebiges
+Profil als erkannter Sensor angezeigt. Vor Kartenwechsel Auswertung stoppen;
+anschließend Autoscan neu einschalten, um die Karte erneut einzulesen.
 
 Name, Sensortyp, Gruppe und Ausgabekanäle kommen aus der JSON. Messergebnisse
 erscheinen auf dem Display und im seriellen Monitor als
@@ -110,10 +116,12 @@ VL53-Timing gegen die ursprüngliche Integerberechnung, PT100/PT1000 bei 0 und
 negativer Temperatur, einen ausschließlich durch JSON hinzugefügten fünften
 Sensortyp sowie ungültige Profile, Rechenfehler, Busfehler, Poll- und Schleifenlimits.
 Autoscan-Tests prüfen periodische Planung, einen Probezugriff je Durchlauf,
+automatisches Abschalten nach eindeutigem Treffer, expliziten Neustart,
 Mehrdeutigkeit, Sensorwechsel/Abziehen und millis-Überlauf.
 Simulationen ersetzen keine Hardwaretests. Alle vier neuen Protokollprofile
 müssen noch an den realen Sensoren geprüft werden; insbesondere Versorgung,
-Breakout-Varianten, Kalibrierung, Neustart, Start/Stopp und Sensorabziehen.
+Breakout-Varianten, Kalibrierung, Neustart, die drei Touch-Tasten, Start/Stopp
+und Sensorabziehen.
 
 Quellen und Lizenzhinweise der abgeleiteten Initialisierungsdaten und Formeln:
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Sensorbibliotheken sind keine

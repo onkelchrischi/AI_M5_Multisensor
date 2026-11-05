@@ -29,6 +29,7 @@ public:
     }
     if (cursor < count) return false;
     matches = pending; scanning = false; due = now + intervalMs;
+    if (matches.size() == 1) enabled = false;
     return true;
   }
 private:

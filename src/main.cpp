@@ -4,7 +4,6 @@
 #include <Wire.h>
 #include "ProtocolEngine.h"
 #include "AutoScan.h"
-#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -86,12 +85,17 @@ void draw() {
   d.setTextSize(1); d.setTextColor(TFT_CYAN);
   d.setCursor(8, 112); d.println(value);
   d.setTextColor(TFT_WHITE); d.setCursor(8, 165); d.println(message);
-  d.setCursor(8, 190); d.println(running ? "Messung aktiv / Scan pausiert" :
-    autoScan.enabled ? "Autoscan EIN (alle 3 s)" : "Autoscan AUS / manuelle Auswahl");
-  d.drawFastHLine(0, 205, 320, TFT_WHITE);
-  d.setTextSize(2);
-  const char *labels[] = {"Weiter", "Start", "Auto", "SD"};
-  for (unsigned i = 0; i < 4; ++i) { d.setCursor(i * 80 + 3, 215); d.print(labels[i]); }
+  d.setCursor(8, 190); d.println(running ? "Sensorauswertung aktiv" :
+    autoScan.enabled ? "Autoscan EIN (alle 3 s)" : "Autoscan AUS");
+  const char *top[] = {"Autoscan", running ? "Stop" : "Start", "Sensor"};
+  const char *bottom[] = {autoScan.enabled ? "EIN" : "AUS", "Auswertung", "durchblaettern"};
+  d.setTextSize(1);
+  for (unsigned i = 0; i < 3; ++i) {
+    int left = i * 320 / 3, right = (i + 1) * 320 / 3;
+    d.drawRect(left, 205, right - left, 35, TFT_WHITE);
+    d.setCursor(left + 8, 212); d.print(top[i]);
+    d.setCursor(left + 8, 225); d.print(bottom[i]);
+  }
 }
 bool load(const String &path, JsonDocument &doc) {
   File f = SD.open(path);
@@ -146,7 +150,7 @@ void scanTick() {
   } else if (autoScan.matches.empty()) {
     message = "Kein Profil antwortet; Anschluss / SD pruefen";
   } else {
-    message = String(autoScan.matches.size()) + " Treffer: mit Weiter waehlen";
+    message = String(autoScan.matches.size()) + " Treffer: Sensor durchblaettern";
   }
   if (rejectedProfiles) message += "; ungueltige JSON: " + String(rejectedProfiles);
   if (wasSelected != sensorSelected || previousSelection != selected || message != previousMessage) {
@@ -181,7 +185,7 @@ void start() {
   if (profiles.empty() || !sensorSelected) {
     message = "Erst Sensor erkennen / Profil waehlen"; draw(); return;
   }
-  autoScan.restart(millis());
+  autoScan.disable();
   active.reset(new JsonDocument());
   if (!load(profiles[selected].path, *active)) { active.reset(); draw(); return; }
   prepare(*active);
@@ -225,27 +229,24 @@ void setup() {
 void loop() {
   M5.update(); auto touch = M5.Touch.getDetail();
   if (touch.wasPressed() && touch.y >= 205) {
-    if (touch.x < 80) {
+    if (touch.x < 320 / 3) {
+      if (autoScan.enabled) {
+        autoScan.disable(); message = "Autoscan ausgeschaltet"; draw();
+      } else {
+        // A new search also reloads SD profiles; replaces the old fourth button.
+        scanSD();
+      }
+    } else if (touch.x < 2 * 320 / 3) {
+      if (running) { stop(); message = "Gestoppt"; draw(); } else start();
+    } else {
       stop(); active.reset(); autoScan.disable();
-      if (!autoScan.matches.empty()) {
-        auto it = std::find(autoScan.matches.begin(), autoScan.matches.end(), selected);
-        if (!sensorSelected || it == autoScan.matches.end() || ++it == autoScan.matches.end())
-          selected = autoScan.matches.front();
-        else selected = *it;
-        sensorSelected = true;
-      } else if (!profiles.empty()) {
+      if (!profiles.empty()) {
         selected = sensorSelected ? (selected + 1) % profiles.size() : 0;
         sensorSelected = true;
-      }
-      value = "-"; message = "Manuelles Profil; Start prueft Anschluss"; draw();
-    } else if (touch.x < 160) {
-      if (running) { stop(); message = "Gestoppt"; draw(); } else start();
-    } else if (touch.x < 240) {
-      if (autoScan.enabled) { autoScan.disable(); message = "Autoscan ausgeschaltet"; }
-      else { autoScan.enable(millis()); message = "Autoscan eingeschaltet"; }
-      draw();
+        message = "Profil gewaehlt; Start prueft Anschluss";
+      } else message = "Keine Profile; Autoscan zum SD-Neuladen";
+      value = "-"; draw();
     }
-    else scanSD();
   }
   if (running && millis() - lastSample >= (*active)["interval_ms"].as<uint32_t>()) {
     lastSample = millis(); sample();

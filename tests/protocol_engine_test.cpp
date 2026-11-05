@@ -154,7 +154,9 @@ void autoScanTests() {
   assert(!scan.tick(0,3,probe)); assert(probes==1);
   assert(!scan.tick(5,3,probe)); assert(scan.matches.empty());
   assert(scan.tick(10,3,probe)); assert(scan.matches==std::vector<size_t>{1});
-  assert(!scan.tick(100,3,probe)); assert(probes==3);
+  assert(!scan.enabled);
+  assert(!scan.tick(100,3,probe)); assert(!scan.tick(10000,3,probe)); assert(probes==3);
+  scan.enable(3010);
   connected={true,false,true};
   assert(!scan.tick(3010,3,probe)); assert(scan.matches==std::vector<size_t>{1});
   assert(!scan.tick(3015,3,probe)); assert(scan.tick(3020,3,probe));
@@ -172,7 +174,7 @@ void autoScanTests() {
   std::vector<JsonDocument> p;
   p.push_back(load("sd/sensors/vl6180.json"));
   p.push_back(load("sd/sensors/vl53l4cda.json"));
-  FakeBus b; b.number(0,180,1); ProtocolEngine e(b); scan.restart(0);
+  FakeBus b; b.number(0,180,1); ProtocolEngine e(b); scan.enable(0);
   auto profileProbe=[&](size_t i) {
     require(e.validate(p[i].as<JsonObjectConst>()),e);
     e.reset(p[i]["constants"].as<JsonObjectConst>());
@@ -180,12 +182,13 @@ void autoScanTests() {
   };
   assert(!scan.tick(0,2,profileProbe)); assert(scan.tick(1,2,profileProbe));
   assert(scan.matches==std::vector<size_t>{0});
-  b.memory.clear(); b.number(0x10f,0xebaa,2); scan.restart(100);
+  b.memory.clear(); b.number(0x10f,0xebaa,2); scan.enable(100);
   assert(!scan.tick(100,2,profileProbe)); assert(scan.tick(101,2,profileProbe));
   assert(scan.matches==std::vector<size_t>{1}); // different connected sensor
-  b.memory.clear(); scan.restart(200);
+  assert(!scan.enabled);
+  b.memory.clear(); scan.enable(200);
   assert(!scan.tick(200,2,profileProbe)); assert(scan.tick(201,2,profileProbe));
   assert(scan.matches.empty()); assert(b.writes.empty());
-  std::cout<<"Autoscan: scheduling, ambiguity, unplug/replug, model IDs and read-only probes OK\n";
+  std::cout<<"Autoscan: stop on unique match, explicit restart, ambiguity and read-only probes OK\n";
 }
 int main(){profiles();failures();newSensorWithoutFirmwareChanges();autoScanTests();}

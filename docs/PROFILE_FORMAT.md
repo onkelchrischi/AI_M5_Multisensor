@@ -38,10 +38,12 @@ Treffer als plausibel, nicht als eindeutig identifiziert. Das Feld ergänzt nur
 die Aussagekraft; alle Register und Prüfschritte bleiben in `detect`.
 
 Der Autoscan lädt die Profile regelmäßig und führt ausschließlich ihre lesenden
-Erkennungssequenzen aus. Ein eindeutiger Treffer wird ausgewählt; bei mehreren
-Treffern erfolgt keine automatische Auswahl. Kein Treffer löscht die automatische
-Auswahl. Messungen starten weiterhin über Start. Im Messbetrieb wird nicht gescannt.
-Neue Profile mit SD-Neuladen aufnehmen; Autoscan ersetzt kein SD-Neuladen.
+Erkennungssequenzen aus. Ein eindeutiger Treffer wird ausgewählt und schaltet den Autoscan aus. Bei
+mehreren Treffern erfolgt keine automatische Auswahl. Kein Treffer löscht die
+automatische Auswahl. Messungen starten weiterhin über Start. Nach Stop oder
+Messfehler bleibt die Suche aus. Ein neuer Autoscan muss über die Taste gestartet
+werden; dabei werden auch die SD-Dateien neu geladen. Die Sensor-Taste blättert
+manuell durch alle geladenen Profile und beendet die Suche.
 
 ## Operationen
 
