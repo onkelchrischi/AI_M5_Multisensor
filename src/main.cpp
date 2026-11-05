@@ -4,6 +4,7 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <Adafruit_MAX31865.h>
+#include <Adafruit_VL6180X.h>
 #include <vl53l4cd_class.h>
 #include <vector>
 #include <memory>
@@ -12,6 +13,7 @@
 // External Port A only: never scan the internal PMIC/touch I2C bus.
 TwoWire sensorBus(0);
 VL53L4CD tof(&sensorBus, -1);
+Adafruit_VL6180X shortRange;
 struct Profile {
   String name, type, group, driver;
   uint8_t address = 0;
@@ -67,11 +69,11 @@ bool loadProfile(File &file, Profile &p) {
   if (interval < 100 || interval > 60000) return false;
   p.interval = interval;
   String bus = doc["interface"]["type"] | "";
-  if (p.driver == "vl53l4cd" || p.driver == "st25dv16") {
+  if (p.driver == "vl53l4cd" || p.driver == "vl6180x" || p.driver == "st25dv16") {
     if (bus != "i2c") return false;
     int address = doc["interface"]["address"] | -1;
     // Initial prototype only supports known default addresses.
-    if (address != (p.driver == "vl53l4cd" ? 0x29 : 0x53)) return false;
+    if (address != (p.driver == "st25dv16" ? 0x53 : 0x29)) return false;
     p.address = address;
   } else if (p.driver == "max31865") {
     if (bus != "spi" || (doc["interface"]["cs_pin"] | -1) != 14) return false;
@@ -115,6 +117,8 @@ void start() {
     ok = ack(p.address) && tof.InitSensor() == 0 &&
       tof.VL53L4CD_SetRangeTiming(p.budget, 0) == 0 &&
       tof.VL53L4CD_StartRanging() == 0;
+  } else if (p.driver == "vl6180x") {
+    ok = ack(p.address) && shortRange.begin(&sensorBus);
   } else if (p.driver == "st25dv16") {
     ok = ack(p.address);
   } else {
@@ -128,6 +132,40 @@ void start() {
   running = ok; started = millis(); lastSample = millis() - p.interval;
   message = ok ? "Gestartet" : "Nicht erkannt / Anschluss oder RTD pruefen";
   draw();
+}
+// Bounded register access avoids the driver's unbounded single-shot wait loops.
+bool vl6180Read(uint16_t reg, uint8_t &result) {
+  sensorBus.beginTransmission(0x29);
+  sensorBus.write(uint8_t(reg >> 8)); sensorBus.write(uint8_t(reg));
+  if (sensorBus.endTransmission(false) ||
+      sensorBus.requestFrom(uint8_t(0x29), uint8_t(1)) != 1) return false;
+  result = sensorBus.read(); return true;
+}
+bool vl6180Write(uint16_t reg, uint8_t data) {
+  sensorBus.beginTransmission(0x29);
+  sensorBus.write(uint8_t(reg >> 8)); sensorBus.write(uint8_t(reg));
+  sensorBus.write(data); return sensorBus.endTransmission() == 0;
+}
+String measureVL6180() {
+  uint8_t status = 0, interrupt = 0, distance = 0;
+  if (!vl6180Read(VL6180X_REG_RESULT_RANGE_STATUS, status)) return "I2C Fehler";
+  if (!(status & 1)) return "Sensor nicht bereit";
+  if (!vl6180Write(VL6180X_REG_SYSTEM_INTERRUPT_CLEAR, 0x07) ||
+      !vl6180Write(VL6180X_REG_SYSRANGE_START, 1)) return "I2C Fehler";
+  const uint32_t since = millis();
+  do {
+    if (!vl6180Read(VL6180X_REG_RESULT_INTERRUPT_STATUS_GPIO, interrupt)) return "I2C Fehler";
+    if (interrupt & 4) {
+      bool ok = vl6180Read(VL6180X_REG_RESULT_RANGE_STATUS, status) &&
+        vl6180Read(VL6180X_REG_RESULT_RANGE_VAL, distance);
+      bool cleared = vl6180Write(VL6180X_REG_SYSTEM_INTERRUPT_CLEAR, 0x07);
+      if (!ok || !cleared) return "I2C Fehler";
+      if (status >> 4) return "Range Status " + String(status >> 4);
+      return String(distance) + " mm";
+    }
+    delay(2);
+  } while (millis() - since < 250);
+  return "Messung Timeout";
 }
 void sample() {
   const auto &p = profiles[selected];
@@ -144,6 +182,8 @@ void sample() {
       else value = String(result.distance_mm) + " mm";
       started = millis();
     }
+  } else if (p.driver == "vl6180x") {
+    value = measureVL6180();
   } else if (p.driver == "st25dv16") {
     // Read-only EEPROM probe. ACK + bytes does not prove the exact chip identity.
     sensorBus.beginTransmission(p.address);

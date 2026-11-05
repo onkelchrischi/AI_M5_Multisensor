@@ -43,6 +43,7 @@ Keine Versorgung wird durch JSON automatisch umgeschaltet.
 
 | Baustein | Core2-Anschluss | Details |
 |---|---|---|
+| VL6180 / VL6180X | SDA GPIO32, SCL GPIO33 | externer Port A, I2C-Adresse 0x29; geeignetes Breakout verwenden |
 | VL53L4CDA / VL53L4CD | SDA GPIO32, SCL GPIO33 | externer Port A, I2C-Adresse 0x29; XSHUT muss am Modul freigegeben sein |
 | ST25DV16 | SDA GPIO32, SCL GPIO33 | EEPROM-Bereich 0x53 bei passenden Adresspins; 16-Bit-Speicheradresse |
 | MAX31865 | SCK GPIO18, MOSI GPIO23, MISO GPIO38, CS GPIO14 | SPI am Erweiterungsanschluss, gemeinsam mit internem SD-Bus; kein Grove-Anschluss |
@@ -54,6 +55,11 @@ interne Display-, Touch- und Stromversorgungspins zu schützen.
 
 ### Sensorverhalten und Grenzen
 
+- **VL6180 / VL6180X:** Abstand in mm, Hersteller-Treiberinitialisierung mit
+  Modell-ID 0xB4. Messfehler werden als Range-Status angezeigt, nicht als Abstand.
+  Registerzugriffe haben I2C-Timeouts und die Messwartezeit ist auf 250 ms
+  begrenzt. Kein ALS-/Lux-Modus in dieser Version. VL6180 und VL53L4CD haben
+  beide Adresse 0x29: nur einen gleichzeitig an Port A anschließen.
 - **VL53L4CD:** ST-Treiber prüft Chip-ID 0xEBAA; Ausgabe in mm. Ein Range-Status
   ungleich 0 ist kein gültiger Messwert. Budget 10–200 ms, fortlaufendes Ranging.
 - **ST25DV16:** liest 1–16 Bytes aus dem 2048-Byte-EEPROM. Keine Schreibzugriffe,
@@ -69,7 +75,7 @@ interne Display-, Touch- und Stromversorgungspins zu schützen.
 
 ## JSON-Vertrag / KI-Vorlage
 
-Die drei Dateien unter `sd/sensors` sind die Ausgangsvorlagen. Pflichtfelder:
+Die vier Dateien unter `sd/sensors` sind die Ausgangsvorlagen. Pflichtfelder:
 `schema_version` (1), `name`, `sensor_type`, `group`, `driver`, `interface`.
 `name` und `group` müssen 1–40 Zeichen lang sein. `interval_ms` liegt zwischen
 100 und 60000 (Standard 1000). Adressen sind **dezimal und 7 Bit**: 41 bzw. 83.
@@ -77,6 +83,7 @@ Treiber und Schnittstelle müssen zusammenpassen:
 
 | driver | interface | parameters |
 |---|---|---|
+| `vl6180x` | `type: i2c`, `address: 41` | `{}`; Einzelmessung, Standardintervall 500 ms im Beispiel |
 | `vl53l4cd` | `type: i2c`, `address: 41` | `timing_budget_ms`: 10–200, Standard 50 |
 | `st25dv16` | `type: i2c`, `address: 83` | `read_offset`: 0–2047, `read_length`: 1–16; Summe höchstens 2048 |
 | `max31865` | `type: spi`, `cs_pin: 14` | `wires`: 2/3/4, `rtd_nominal_ohm`: >0 bis 2000, `reference_ohm`: größer als nominal, höchstens 10000 |
@@ -98,7 +105,7 @@ Abstand mit Referenzstrecke und Temperatur mit bekanntem Widerstand prüfen.
 
 ### Stand der Cloud-Prüfung
 
-Die drei JSON-Beispiele wurden erfolgreich geparst. Nach der Korrektur des
+Die vier JSON-Beispiele wurden erfolgreich geparst. Nach der Korrektur des
 ArduinoJson-7-Proxyzugriffs in `loadProfile` wurde `pio run -j 4` für
 `m5stack-core2` erfolgreich ausgeführt und `firmware.bin` erzeugt.
 Hardwaretests und Upload auf einen echten Core2 stehen weiterhin aus.
