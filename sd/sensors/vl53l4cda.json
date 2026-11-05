@@ -8,9 +8,11 @@
     "address": 41,
     "register_bytes": 2
   },
-  "interval_ms": 500,
+  "interval_ms": 0,
   "constants": {
-    "timing_budget_ms": 50
+    "timing_budget_ms": 10,
+    "distance_offset_mm": 0,
+    "distance_scale": 1
   },
   "sequences": {
     "detect": [
@@ -55,7 +57,8 @@
         "bytes": 1,
         "mask": 255,
         "equals": 3,
-        "timeout_ms": 1000
+        "timeout_ms": 1000,
+        "poll_interval_ms": 1
       },
       {
         "op": "write",
@@ -184,7 +187,8 @@
         "bytes": 1,
         "mask": 1,
         "equals": 0,
-        "timeout_ms": 1000
+        "timeout_ms": 1000,
+        "poll_interval_ms": 1
       },
       {
         "op": "write",
@@ -428,7 +432,8 @@
         "bytes": 1,
         "mask": 1,
         "equals": 0,
-        "timeout_ms": 1000
+        "timeout_ms": 1000,
+        "poll_interval_ms": 1
       },
       {
         "op": "write",
@@ -444,7 +449,8 @@
         "bytes": 1,
         "mask": 1,
         "equals": 0,
-        "timeout_ms": 1000
+        "timeout_ms": 1000,
+        "poll_interval_ms": 1
       },
       {
         "op": "read",
@@ -462,7 +468,7 @@
         "op": "read",
         "reg": 150,
         "bytes": 2,
-        "var": "distance"
+        "var": "distance_raw"
       },
       {
         "op": "write",
@@ -491,6 +497,17 @@
           "gt"
         ],
         "message": "Keine aktiven SPADs"
+      },
+      {
+        "op": "calc",
+        "var": "distance",
+        "expr": [
+          "$distance_raw",
+          "$distance_scale",
+          "*",
+          "$distance_offset_mm",
+          "+"
+        ]
       }
     ],
     "stop": [
@@ -509,7 +526,7 @@
       "unit": "mm"
     }
   ],
-  "notes": "Initialisierung und kontinuierliches Ranging nach ST VL53L4CD 1.0.5. timing_budget_ms 10..200. Standard-Interruptpolaritaet aktiv LOW. Hardwaretest ausstehend.",
+  "notes": "Schnellmodus: 10 ms Timingbudget, kontinuierlich ohne Intermeasurement-Pause; interval_ms=0 liest jede neue verfuegbare Messung ohne zusaetzliche Wartezeit. Kein Mittelwert oder Oversampling in der Firmware. Erforderliche interne ST-Messverarbeitung bleibt erhalten. Kuerzere Messzeit kann staerker streuen; Offset/Skalierung nur nach Referenzmessung anpassen. Hardwaretest und tatsaechliche Rate ausstehend.",
   "sources": [
     "https://github.com/stm32duino/VL53L4CD/tree/1.0.5"
   ],

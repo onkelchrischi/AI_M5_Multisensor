@@ -8,8 +8,10 @@
     "address": 41,
     "register_bytes": 2
   },
-  "interval_ms": 500,
-  "constants": {},
+  "interval_ms": 0,
+  "constants": {
+    "max_convergence_ms": 1
+  },
   "sequences": {
     "detect": [
       {
@@ -284,6 +286,32 @@
             "value": 0
           }
         ]
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$max_convergence_ms",
+          1,
+          "ge"
+        ],
+        "message": "Konvergenzzeit unter 1 ms"
+      },
+      {
+        "op": "assert",
+        "expr": [
+          "$max_convergence_ms",
+          63,
+          "le"
+        ],
+        "message": "Konvergenzzeit ueber 63 ms"
+      },
+      {
+        "op": "write",
+        "reg": 28,
+        "bytes": 1,
+        "value": [
+          "$max_convergence_ms"
+        ]
       }
     ],
     "measure": [
@@ -293,7 +321,8 @@
         "bytes": 1,
         "mask": 1,
         "equals": 1,
-        "timeout_ms": 250
+        "timeout_ms": 250,
+        "poll_interval_ms": 1
       },
       {
         "op": "write",
@@ -313,7 +342,8 @@
         "bytes": 1,
         "mask": 4,
         "equals": 4,
-        "timeout_ms": 250
+        "timeout_ms": 250,
+        "poll_interval_ms": 1
       },
       {
         "op": "read",
@@ -586,9 +616,10 @@
       "unit": "mm"
     }
   ],
-  "notes": "Abgeleitet aus Adafruit VL6180X 1.4.4. Nur Abstand, kein ALS. Nicht gemeinsam mit anderem Geraet auf 0x29 betreiben. Hardwaretest ausstehend. Status 0 ist gueltig; andere Statuscodes werden als konkrete Fehlermeldung ausgegeben. Fuer ersten Funktionstest matte helle Flaeche in 20-50 mm Abstand verwenden.",
+  "notes": "Abgeleitet aus Adafruit VL6180X 1.4.4. Nur Abstand, kein ALS. Nicht gemeinsam mit anderem Geraet auf 0x29 betreiben. Hardwaretest ausstehend. Status 0 ist gueltig; andere Statuscodes werden als konkrete Fehlermeldung ausgegeben. Fuer ersten Funktionstest matte helle Flaeche in 20-50 mm Abstand verwenden. Schnellmodus: interval_ms=0; max_convergence_ms=1 begrenzt die Konvergenzzeit. Bei unzureichendem Signal entstehen eher ungueltige Messungen; keine garantierte 1-kHz-Rate. Interne Hersteller-Grundkonfiguration bleibt erhalten, keine Mittelwertbildung durch die Firmware.",
   "sources": [
-    "https://github.com/adafruit/Adafruit_VL6180X/tree/1.4.4"
+    "https://github.com/adafruit/Adafruit_VL6180X/tree/1.4.4",
+    "https://github.com/pololu/vl6180x-arduino/blob/master/VL6180X.h"
   ],
   "identification": "model_id"
 }

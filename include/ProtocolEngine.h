@@ -147,6 +147,9 @@ inline bool ProtocolEngine::checkSteps(JsonArrayConst steps, bool readOnly, unsi
       std::string endian = op["endian"] | "big";
       if (endian != "big" && endian != "little") return fail("Byte-Reihenfolge ungueltig");
       if (type == "poll") {
+        if (!op["poll_interval_ms"].isNull() &&
+            (!op["poll_interval_ms"].is<unsigned>() || op["poll_interval_ms"].as<unsigned>() < 1 ||
+             op["poll_interval_ms"].as<unsigned>() > 100)) return fail("Pollintervall: 1..100 ms");
         if ((op["signed"] | false) || !op["mask"].is<uint32_t>() || !op["equals"].is<uint32_t>() ||
             !op["timeout_ms"].is<unsigned>() || op["timeout_ms"].as<unsigned>() < 1 ||
             op["timeout_ms"].as<unsigned>() > 2000) return fail("Poll-Parameter ungueltig");
@@ -182,8 +185,8 @@ inline bool ProtocolEngine::validate(JsonObjectConst p) {
     const char *s = p[key] | "";
     if (!*s || std::string(s).size() > 48) return fail("Name, Sensortyp oder Gruppe fehlt / zu lang");
   }
-  if (!p["interval_ms"].is<unsigned>() || p["interval_ms"].as<unsigned>() < 100 ||
-      p["interval_ms"].as<unsigned>() > 60000) return fail("Messintervall: 100..60000 ms");
+  if (!p["interval_ms"].is<unsigned>() ||
+      p["interval_ms"].as<unsigned>() > 60000) return fail("Messintervall: 0..60000 ms");
   JsonObjectConst b = p["interface"].as<JsonObjectConst>();
   std::string type = b["type"] | "";
   if (type == "i2c") {
@@ -246,7 +249,7 @@ inline bool ProtocolEngine::execute(JsonArrayConst steps, bool readOnly, unsigne
         if ((uint32_t(x) & op["mask"].as<uint32_t>()) == op["equals"].as<uint32_t>()) break;
         if (bus.now() - since >= op["timeout_ms"].as<uint32_t>() || bus.now() - began > 10000)
           return fail("Poll Timeout");
-        bus.wait(2);
+        bus.wait(op["poll_interval_ms"] | 2u);
       } while (true);
     } else if (type == "delay") {
       if (readOnly) return fail("Delay waehrend Erkennung gesperrt");

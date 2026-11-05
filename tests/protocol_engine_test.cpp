@@ -89,7 +89,8 @@ void profiles() {
       // Verify encoded timing writes against the upstream uint32 algorithm.
       for (auto pair : {std::make_pair(16u,0x5eu),std::make_pair(12u,0x61u)}) {
         uint32_t macro=(2304u*(0x40000000u/4096u))>>6;
-        uint32_t tmp=macro*pair.first, budget=47500u<<12;
+        uint32_t tmp=macro*pair.first;
+        uint32_t budget=(p["constants"]["timing_budget_ms"].as<uint32_t>()*1000u-2500u)<<12;
         uint32_t ls=(budget+((tmp>>6)>>1))/(tmp>>6)-1, ms=0;
         while(ls & 0xffffff00u) {ls>>=1;ms++;}
         uint16_t expected=(ms<<8)+(ls & 255); bool found=false;
@@ -213,4 +214,27 @@ void autoScanTests() {
   assert(scan.matches.empty()); assert(b.writes.empty());
   std::cout<<"Autoscan: stop on unique match, explicit restart, ambiguity and read-only probes OK\n";
 }
-int main(){profiles();failures();newSensorWithoutFirmwareChanges();autoScanTests();}
+void freshDistanceTests() {
+  struct FreshBus : FakeBus {
+    bool write(uint16_t reg, const uint8_t *p, size_t n) override {
+      if (!FakeBus::write(reg,p,n)) return false;
+      if (reg==134 && p[0]==1) memory[49]=1; // IRQ acknowledged: no new sample yet
+      return true;
+    }
+  } b;
+  auto p=load("sd/sensors/vl53l4cda.json"); ProtocolEngine e(b);
+  assert(p["interval_ms"].as<unsigned>()==0);
+  assert(p["constants"]["timing_budget_ms"].as<unsigned>()==10);
+  require(e.validate(p.as<JsonObjectConst>()),e);
+  b.number(49,0,1); b.number(137,9,1); b.number(140,256,2); b.number(150,123,2);
+  e.reset(p["constants"].as<JsonObjectConst>());
+  require(sequence(e,p,"measure"),e); assert(e.variables.at("distance")==123);
+  e.reset(p["constants"].as<JsonObjectConst>());
+  assert(!sequence(e,p,"measure")); assert(e.error=="Poll Timeout");
+  assert(e.variables.count("distance_raw")==0); // never re-publish the old distance
+  b.number(49,0,1); b.number(150,124,2);
+  e.reset(p["constants"].as<JsonObjectConst>());
+  require(sequence(e,p,"measure"),e); assert(e.variables.at("distance")==124);
+  std::cout<<"Fast distance mode: fresh IRQ required; no duplicate samples or averaging OK\n";
+}
+int main(){profiles();failures();newSensorWithoutFirmwareChanges();autoScanTests();freshDistanceTests();}

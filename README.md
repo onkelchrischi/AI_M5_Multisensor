@@ -106,7 +106,7 @@ Kein Lux-Modus beim VL6180; beim ST25DV16 keine RF-Konfiguration oder Schreibzug
 MAX31865-Konstanten: `rtd_nominal_ohm` = 100 (PT100) oder 1000 (PT1000),
 `reference_ohm` = tatsächlich bestückter Referenzwiderstand, `wire_bits` = 16 für
 3-Leiter, 0 für 2-/4-Leiter; Hardwarebrücken entsprechend setzen. `filter_bits` = 1
-für 50 Hz, 0 für 60 Hz. Beim VL53L4CD ist `timing_budget_ms` von 10 bis 200 zulässig.
+für 50 Hz, 0 für 60 Hz. Beim VL53L4CD ist `timing_budget_ms` von 10 bis 200 zulässig (jetzt 10 ms).
 
 ## Eigene Profile und KI
 
@@ -166,3 +166,31 @@ Die Änderung verbessert die Diagnose; sie bestätigt keine Behebung der Ursache
 am realen Sensor. Bei anhaltendem Fehler Statuscode, Breakout-Modell, Zielabstand
 und Anschluss angeben, um Initialisierung, Messbedingungen und Hardware gezielt
 zu prüfen.
+
+## Schnelle Abstandsmessung ohne zusätzliche Mittelwerte
+
+Die Abstandsprofile verwenden `interval_ms: 0`: keine zusätzliche 500-ms-Pause.
+Jeder ausgegebene Wert stammt aus einer neuen, per Bereitschaft/Interrupt
+bestätigten Messung. Die Firmware bildet keine Mittelwerte, gleitenden Filter
+oder Oversampling-Serien. Die erforderliche interne Signalverarbeitung der
+Sensoren bleibt erhalten; sie lässt sich nicht pauschal vollständig abschalten.
+
+- VL53L4CDA: kontinuierlicher Betrieb, `timing_budget_ms: 10`, keine zusätzliche
+  Intermeasurement-Pause. Dies ist der minimale vom ST-Treiber unterstützte Wert;
+  etwa 100 Hz sind ein Sensorziel, keine garantierte Gesamtrate.
+- VL6180: Einzelmessungen ohne zusätzliche Intervallpause,
+  `max_convergence_ms: 1` im Profil. Das begrenzt die Konvergenzzeit, garantiert
+  aber keine 1-ms-Gesamtmessung. Bei schwachem Signal können mehr ungültige
+  Messungen auftreten. Interne Hersteller-Grundkonfiguration bleibt erhalten.
+- Poll-Abstand in beiden Profilen: 1 ms. Die Bedienungsschleife wartet 1 statt
+  5 ms. Displayaktualisierung maximal 20 Hz und unabhängig von den Messaufrufen;
+  Serial liefert weiterhin jeden gültigen Messwert. Keine zusätzliche
+  Mittelwertbildung oder Auswahl mehrerer Messungen für einen Ausgabewert.
+
+Kurze Messzeit kann stärkere Streuung verursachen und behebt keinen Offset.
+Beim VL53L4CDA sind `distance_scale: 1` und `distance_offset_mm: 0` neutrale
+Kalibrierparameter. Ausgabe = Rohabstand * Skalierung + Offset. Nur anhand
+bekannter Referenzabstände ändern; keine Korrekturwerte ohne Kalibrierung raten.
+Die reale Rate und Genauigkeit hängen außerdem von Ziel, Umgebung und Abdeckung
+ab und müssen am Gerät geprüft werden. Für den ersten Wechsel Firmware flashen
+und beide Abstands-JSONs ersetzen; spätere Timingänderungen erfolgen nur per SD.

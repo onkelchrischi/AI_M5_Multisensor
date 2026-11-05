@@ -9,7 +9,10 @@ fachliche Richtigkeit der Angaben.
 
 - `schema_version`: Zahl 2.
 - `name`, `sensor_type`, `group`: nicht leere Texte, höchstens 48 Bytes.
-- `interval_ms`: Ganzzahl 100..60000; Messintervall, keine Hardware-Timingvorgabe.
+- `interval_ms`: Ganzzahl 0..60000; Messintervall, keine Hardware-Timingvorgabe.
+  0 bedeutet keine zusätzliche Intervallpause: direkt erneut messen, sobald der
+  vorherige Aufruf beendet ist. `measure` muss auf neue Sensor-Daten warten, um
+  doppelte Ausgaben desselben Messwertes zu verhindern.
 - `interface`: siehe unten.
 - `constants`: Objekt mit höchstens 32 endlichen Zahlen; Variablennamen höchstens
   24 Bytes. Beim Start und vor jeder Messung in den Variablenspeicher kopiert.
@@ -55,7 +58,7 @@ Hardware ausführen.
 | `read` | `reg`, `bytes` (1..4), `var` | Wert in Variable lesen |
 | `write` | `reg`, `bytes` (1..4), `value` (Zahl oder Ausdruck) | Ganzzahl in Register schreiben |
 | `write` | `reg`, `data` (1..24 Bytewerte) | Konfigurationsblock schreiben |
-| `poll` | `reg`, `bytes`, `mask`, `equals`, `timeout_ms` (1..2000) | wiederholt lesen bis `(Wert & mask) == equals` |
+| `poll` | `reg`, `bytes`, `mask`, `equals`, `timeout_ms` (1..2000), optional `poll_interval_ms` (1..100, Standard 2) | wiederholt lesen bis `(Wert & mask) == equals` |
 | `delay` | `ms` (0..2000) | warten |
 | `calc` | `var`, `expr` | Formel berechnen |
 | `assert` | `expr`, optional `message` | bei 0 abbrechen; Nachricht anzeigen |

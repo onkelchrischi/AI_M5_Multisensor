@@ -103,6 +103,9 @@ DisplayRegion profileRegion(35, 70), valueRegion(108, 54), messageRegion(164, 24
 
 void draw() {
   static bool initialized = false;
+  static uint32_t lastFrame = 0;
+  if (initialized && millis() - lastFrame < 50) return;
+  lastFrame = millis();
   if (!initialized) {
     M5.Display.fillScreen(TFT_BLACK);
     M5.Display.setTextColor(TFT_WHITE); M5.Display.setTextSize(2);
@@ -298,5 +301,6 @@ void loop() {
     lastSample = millis(); sample();
   }
   scanTick();
-  delay(5);
+  draw(); // Flush the latest values at up to 20 Hz, independently of sampling.
+  delay(1);
 }
