@@ -98,11 +98,7 @@ Abstand mit Referenzstrecke und Temperatur mit bekanntem Widerstand prüfen.
 
 ### Stand der Cloud-Prüfung
 
-Die drei JSON-Beispiele wurden erfolgreich geparst. Die verwendeten ST- und
-Adafruit-Methoden wurden gegen die festgelegten Treiberquellen geprüft.
-Der PlatformIO-Build konnte wegen HTTP 403 beim Zugriff auf
-`api.registry.platformio.org` und `dl.registry.platformio.org` nicht ausgeführt
-werden. Es liegt deshalb noch keine erfolgreich kompilierte oder auf Hardware
-validierte Firmware-Binärdatei vor. Die Netzwerkergänzungen sind als
-Cloud-Konfigurationsentwurf gespeichert und müssen in den Umgebungseinstellungen
-übernommen werden.
+Die drei JSON-Beispiele wurden erfolgreich geparst. Nach der Korrektur des
+ArduinoJson-7-Proxyzugriffs in `loadProfile` wurde `pio run -j 4` für
+`m5stack-core2` erfolgreich ausgeführt und `firmware.bin` erzeugt.
+Hardwaretests und Upload auf einen echten Core2 stehen weiterhin aus.

@@ -76,7 +76,7 @@ bool loadProfile(File &file, Profile &p) {
   } else if (p.driver == "max31865") {
     if (bus != "spi" || (doc["interface"]["cs_pin"] | -1) != 14) return false;
   } else return false;
-  auto params = doc["parameters"];
+  JsonObjectConst params = doc["parameters"].as<JsonObjectConst>();
   p.budget = params["timing_budget_ms"] | 50;
   p.offset = params["read_offset"] | 0; p.length = params["read_length"] | 8;
   p.wires = params["wires"] | 3;
